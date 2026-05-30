@@ -1,4 +1,4 @@
-package com.github.vagnerlg.main.config;
+package com.github.vagnerlg.search.config;
 
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.instrumentation.logback.appender.v1_0.OpenTelemetryAppender;

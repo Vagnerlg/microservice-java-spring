@@ -1,4 +1,4 @@
-package com.github.vagnerlg.main;
+package com.github.vagnerlg.search;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -6,8 +6,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication
 public class SearchApplication {
 
-	public static void main(String[] args) {
-		SpringApplication.run(MainApplication.class, args);
-	}
-
+    public static void main(String[] args) {
+        SpringApplication.run(SearchApplication.class, args);
+    }
 }

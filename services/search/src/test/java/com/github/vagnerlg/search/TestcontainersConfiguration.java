@@ -1,15 +1,32 @@
-package com.github.vagnerlg.main;
+package com.github.vagnerlg.search;
 
 import org.springframework.boot.test.context.TestConfiguration;
-import org.testcontainers.junit.jupiter.Testcontainers;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.context.annotation.Bean;
+import org.springframework.test.context.DynamicPropertyRegistrar;
+import org.testcontainers.containers.KafkaContainer;
+import org.testcontainers.elasticsearch.ElasticsearchContainer;
+import org.testcontainers.utility.DockerImageName;
 
 @TestConfiguration(proxyBeanMethods = false)
-@Testcontainers
 public class TestcontainersConfiguration {
 
-//    @Bean
-//    @ServiceConnection
-//    PostgreSQLContainer<?> postgresContainer() {
-//        return new PostgreSQLContainer<>(DockerImageName.parse("postgres:17"));
-//    }
+    @Bean
+    @ServiceConnection
+    ElasticsearchContainer elasticsearchContainer() {
+        return new ElasticsearchContainer(
+                DockerImageName.parse("docker.elastic.co/elasticsearch/elasticsearch:8.13.4"));
+    }
+
+    @Bean
+    KafkaContainer kafkaContainer() {
+        var container = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.6.1"));
+        container.start();
+        return container;
+    }
+
+    @Bean
+    DynamicPropertyRegistrar kafkaProperties(KafkaContainer kafka) {
+        return registry -> registry.add("spring.kafka.bootstrap-servers", kafka::getBootstrapServers);
+    }
 }

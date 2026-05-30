@@ -1,4 +1,4 @@
-package com.github.vagnerlg.main;
+package com.github.vagnerlg.search;
 
 import org.springframework.boot.test.context.TestConfiguration;
 
@@ -6,10 +6,5 @@ import org.springframework.boot.test.context.TestConfiguration;
 public class MockConfiguration {
 
     // Declare beans mockados aqui com @Bean + Mockito.mock() quando necessário.
-    // Exemplo:
-    // @Bean
-    // SomeService someService() {
-    //     return Mockito.mock(SomeService.class);
-    // }
 
 }
