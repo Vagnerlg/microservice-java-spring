@@ -4,8 +4,9 @@
 ![Java](https://img.shields.io/badge/Java-21-orange?logo=openjdk)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0-brightgreen?logo=springboot)
 ![MongoDB](https://img.shields.io/badge/MongoDB-8.0-green?logo=mongodb)
+![Kafka](https://img.shields.io/badge/Apache%20Kafka-black?logo=apachekafka)
 
-Microserviço de catálogo de produtos da plataforma de e-commerce. Responsável por criar e consultar produtos, armazenando-os no MongoDB.
+Microserviço de catálogo de produtos da plataforma de e-commerce. Responsável por criar e consultar produtos, armazenando-os no MongoDB, e publicar eventos de domínio no Kafka.
 
 ---
 
@@ -16,6 +17,7 @@ Microserviço de catálogo de produtos da plataforma de e-commerce. Responsável
 | Linguagem | Java 21 (records, virtual threads) |
 | Framework | Spring Boot 4.0 |
 | Banco de dados | MongoDB |
+| Mensageria | Apache Kafka |
 | Observabilidade | OpenTelemetry + Grafana (Tempo · Loki · Prometheus) |
 | Testes | JUnit 5 + Mockito + Testcontainers |
 | Qualidade | JaCoCo · SpotBugs · PMD |
@@ -102,6 +104,7 @@ curl -s http://localhost:8080/products/6650a1f3e4b09c2d3f8a1234 | jq
 | `409 Conflict` | Produto com o mesmo nome já existe |
 | `404 Not Found` | Produto não encontrado |
 | `422 Unprocessable Entity` | Campos inválidos (Bean Validation) |
+| `500 Internal Server Error` | Falha ao publicar evento no Kafka |
 
 Exemplo de resposta de erro de validação:
 
@@ -116,6 +119,37 @@ Exemplo de resposta de erro de validação:
 
 ---
 
+## Eventos
+
+Ao criar um produto com sucesso, o serviço publica um evento no tópico `product`.
+
+| Tópico | Evento | Trigger |
+|---|---|---|
+| `product` | `CREATED` | `POST /products` bem-sucedido |
+
+**Formato da mensagem (JSON):**
+
+```json
+{
+  "event": "CREATED",
+  "data": {
+    "id": "6650a1f3e4b09c2d3f8a1234",
+    "name": "Teclado Mecânico",
+    "description": "Switch Cherry MX Red, layout ABNT2",
+    "price": 349.90,
+    "category": "Periféricos",
+    "createdAt": "2025-01-15T14:30:00Z",
+    "updatedAt": "2025-01-15T14:30:00Z"
+  }
+}
+```
+
+A chave da mensagem é o `id` do produto (String). Não há headers de tipo — o campo `event` identifica o tipo do evento.
+
+**Consumidores esperados:** `inventory-service` (reserva de estoque), `search-service` (índice de busca), `report-service` (analytics).
+
+---
+
 ## Rodando localmente
 
 **Pré-requisitos:** Java 21 e Docker.
@@ -126,7 +160,22 @@ Exemplo de resposta de erro de validação:
 docker run -d --name mongo -p 27017:27017 mongo:8
 ```
 
-**2. Inicie a aplicação:**
+**2. Suba o Kafka:**
+
+```bash
+docker run -d --name kafka -p 9092:9092 \
+  -e KAFKA_NODE_ID=1 \
+  -e KAFKA_PROCESS_ROLES=broker,controller \
+  -e KAFKA_CONTROLLER_QUORUM_VOTERS=1@localhost:9093 \
+  -e KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT \
+  -e KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093 \
+  -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092 \
+  -e KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER \
+  -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 \
+  confluentinc/cp-kafka:7.6.1
+```
+
+**3. Inicie a aplicação:**
 
 ```bash
 ./mvnw spring-boot:run

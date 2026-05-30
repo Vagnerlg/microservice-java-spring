@@ -9,4 +9,6 @@ public interface ProductRepository {
     Optional<Product> findById(String id);
 
     boolean existsByName(String name);
+
+    void deleteById(String id);
 }

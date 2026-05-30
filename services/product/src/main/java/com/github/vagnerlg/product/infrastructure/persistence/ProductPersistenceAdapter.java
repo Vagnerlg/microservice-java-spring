@@ -32,6 +32,11 @@ class ProductPersistenceAdapter implements ProductRepository {
         return mongoRepository.existsByName(name);
     }
 
+    @Override
+    public void deleteById(String id) {
+        mongoRepository.deleteById(id);
+    }
+
     private ProductDocument toDocument(Product product) {
         return new ProductDocument(
                 product.id(),
