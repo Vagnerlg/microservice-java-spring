@@ -15,7 +15,8 @@ public class TestcontainersConfiguration {
     @ServiceConnection
     ElasticsearchContainer elasticsearchContainer() {
         return new ElasticsearchContainer(
-                DockerImageName.parse("docker.elastic.co/elasticsearch/elasticsearch:8.13.4"));
+                DockerImageName.parse("docker.elastic.co/elasticsearch/elasticsearch:9.2.8"))
+                .withEnv("xpack.security.enabled", "false");
     }
 
     @Bean

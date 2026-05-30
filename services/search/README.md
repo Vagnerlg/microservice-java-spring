@@ -1,420 +1,308 @@
-# java-base-project
+# search-service
 
 ![Java](https://img.shields.io/badge/Java-21-orange?logo=openjdk)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0-brightgreen?logo=springboot)
-![Quality](https://github.com/Vagnerlg/java-spring-boot-base-project/actions/workflows/quality.yml/badge.svg)
-![Quality](https://github.com/Vagnerlg/java-spring-boot-base-project/actions/workflows/quality.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-JUnit%205%20%2B%20Testcontainers-blue?logo=junit5)
+![Elasticsearch](https://img.shields.io/badge/Elasticsearch-8.x-005571?logo=elasticsearch)
+![Kafka](https://img.shields.io/badge/Apache%20Kafka-consumer-231F20?logo=apachekafka)
+![JaCoCo](https://img.shields.io/badge/coverage-≥80%25-brightgreen?logo=jacoco)
+![Testcontainers](https://img.shields.io/badge/tests-Testcontainers-blue?logo=docker)
+![CI](https://github.com/Vagnerlg/java-spring-boot-base-project/actions/workflows/quality.yml/badge.svg)
 
-Projeto base para novas aplicações **Spring Boot 4 + Java 21**. Fornece a estrutura e os componentes transversais prontos para uso, para que cada novo serviço comece com qualidade e observabilidade já configuradas.
-
-| Componente | Tecnologia | Finalidade |
-|---|---|---|
-| Actuator | Spring Boot Actuator | Health check e métricas expostas |
-| Observabilidade | OpenTelemetry + Micrometer | Traces, métricas e logs via OTLP |
-| Logs estruturados | Logback + OTel Appender | Logs correlacionados com traces |
-| Testes | JUnit 5 + Mockito + Testcontainers | Unitários e integração |
-| Qualidade | JaCoCo + SpotBugs + PMD | Cobertura e análise estática |
-| CI | GitHub Actions | Build e quality gates automáticos |
+Serviço de busca de produtos da plataforma de e-commerce. Implementa o modelo de leitura CQRS: consome eventos do tópico Kafka `product`, mantém o índice Elasticsearch atualizado e expõe uma API de busca full-text paginada.
 
 ---
 
 ## Índice
 
-- [Rodando em desenvolvimento](#rodando-em-desenvolvimento)
+- [Visão geral](#visão-geral)
+- [Arquitetura interna (DDD)](#arquitetura-interna-ddd)
+- [Contrato de eventos Kafka](#contrato-de-eventos-kafka)
+- [API Reference](#api-reference)
+- [Índice Elasticsearch](#índice-elasticsearch)
+- [Como rodar localmente](#como-rodar-localmente)
+- [Testes e qualidade](#testes-e-qualidade)
 - [Observabilidade](#observabilidade)
-- [Logs](#logs)
-- [Testes e qualidade de código](#testes-e-qualidade-de-código)
-- [Como escrever testes](#como-escrever-testes)
-  - [Teste unitário puro](#teste-unitário-puro)
-  - [Teste unitário com mock](#teste-unitário-com-mock-mockito-puro)
-  - [Teste com mock de bean Spring](#teste-com-mock-de-bean-spring-mockitobean)
-  - [Teste de integração com Testcontainers](#teste-de-integração-com-testcontainers)
-- [CI — GitHub Actions](#ci--github-actions)
 
 ---
 
-## Rodando em desenvolvimento
+## Visão geral
+
+O `search-service` é um consumidor puro: não possui banco de dados transacional próprio nem publica eventos. Sua única responsabilidade é manter o índice de busca sincronizado com o catálogo de produtos e responder consultas full-text com baixa latência.
+
+```
+┌─────────────────┐   product.CREATED / UPDATED / DELETED   ┌──────────────────┐
+│  product-service │ ──────────────── Kafka ────────────────► │  search-service  │
+└─────────────────┘          (tópico: product)                │                  │
+                                                              │  ┌────────────┐  │
+                                                              │  │    Kafka   │  │
+                                                              │  │  Consumer  │  │
+                                                              │  └─────┬──────┘  │
+                                                              │        │ index / │
+                                                              │        │ delete  │
+                                                              │  ┌─────▼──────┐  │
+                                                              │  │Elasticsearch│  │
+                                                              │  │  products  │  │
+                                                              │  └─────┬──────┘  │
+                                                              │        │ search  │
+                                                              │  ┌─────▼──────┐  │
+                                                              │  │  REST API  │  │
+                                                              │  │GET /search │  │
+                                                              │  └────────────┘  │
+                                                              └──────────────────┘
+                                                                       │
+                                                                       ▼
+                                                               clientes / BFF
+```
+
+---
+
+## Arquitetura interna (DDD)
+
+O serviço segue os princípios de **Domain-Driven Design**, separando claramente domínio, aplicação e infraestrutura:
+
+```
+com.github.vagnerlg.search/
+├── domain/
+│   ├── Product.java              # Entidade de domínio (record imutável)
+│   └── ProductRepository.java    # Porta de saída (interface)
+│
+├── application/
+│   └── ProductSearchService.java # Casos de uso: index, delete, search
+│
+└── infrastructure/
+    ├── elasticsearch/
+    │   ├── ProductDocument.java              # Mapeamento do índice ES
+    │   └── ElasticsearchProductRepository.java  # Adaptador da porta de saída
+    ├── kafka/
+    │   ├── ProductEventConsumer.java         # Adaptador de entrada (Kafka listener)
+    │   └── ProductEventMessage.java          # Deserialização do envelope de evento
+    └── web/
+        ├── ProductSearchController.java      # Adaptador de entrada (REST)
+        └── ProductSearchResponse.java        # DTO de resposta
+```
+
+**Fluxo de um evento:**
+1. `ProductEventConsumer` recebe o `ConsumerRecord` do Kafka
+2. Deserializa o envelope `{ event, data }` para `ProductEventMessage`
+3. Delega ao `ProductSearchService` (`index` ou `delete`)
+4. O serviço chama a porta `ProductRepository`
+5. `ElasticsearchProductRepository` executa a operação no índice
+
+**Fluxo de uma busca:**
+1. `ProductSearchController` recebe `GET /products/search`
+2. Delega ao `ProductSearchService.search(query, category, pageable)`
+3. O repositório executa `multi_match` em `name`+`description` com filtro opcional por `category`
+4. Retorna `Page<ProductSearchResponse>` ao cliente
+
+---
+
+## Contrato de eventos Kafka
+
+**Tópico:** `product`  
+**Formato:** envelope JSON `{ "event": "<TIPO>", "data": { ...campos... } }`
+
+### Tipos de evento
+
+| Evento | Ação no índice |
+|---|---|
+| `CREATED` | Indexa o documento |
+| `UPDATED` | Reindexe o documento (upsert) |
+| `DELETED` | Remove o documento pelo `id` |
+
+### Payload
+
+```json
+{
+  "event": "CREATED",
+  "data": {
+    "id": "64f1a2b3c4d5e6f7a8b9c0d1",
+    "name": "Tênis Running Pro",
+    "description": "Tênis de corrida com amortecimento avançado",
+    "price": 349.90,
+    "category": "calcados",
+    "createdAt": "2024-01-15T10:30:00Z",
+    "updatedAt": "2024-01-15T10:30:00Z"
+  }
+}
+```
+
+Eventos com tipo desconhecido são ignorados com log `WARN` — o serviço não falha nem comita o offset para garantir reprocessamento.
+
+---
+
+## API Reference
+
+### `GET /products/search`
+
+Busca full-text paginada no catálogo de produtos.
+
+**Parâmetros**
+
+| Parâmetro | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `q` | string | sim | Texto livre — busca em `name` e `description` |
+| `category` | string | não | Filtro exato por categoria (`keyword`) |
+| `page` | int | não | Número da página (0-based, padrão: 0) |
+| `size` | int | não | Itens por página (padrão: 20) |
+| `sort` | string | não | Ex: `price,asc` ou `name,desc` |
+
+**Exemplo de requisição**
+
+```bash
+curl "http://localhost:8080/products/search?q=tênis&category=calcados&page=0&size=5"
+```
+
+**Exemplo de resposta** `200 OK`
+
+```json
+{
+  "content": [
+    {
+      "id": "64f1a2b3c4d5e6f7a8b9c0d1",
+      "name": "Tênis Running Pro",
+      "description": "Tênis de corrida com amortecimento avançado",
+      "price": 349.90,
+      "category": "calcados",
+      "createdAt": "2024-01-15T10:30:00Z",
+      "updatedAt": "2024-01-15T10:30:00Z"
+    }
+  ],
+  "page": {
+    "size": 5,
+    "number": 0,
+    "totalElements": 1,
+    "totalPages": 1
+  }
+}
+```
+
+---
+
+## Índice Elasticsearch
+
+**Nome:** `products`
+
+| Campo | Tipo ES | Comportamento |
+|---|---|---|
+| `id` | `_id` | Identificador do documento |
+| `name` | `text` | Analisado — busca full-text |
+| `description` | `text` | Analisado — busca full-text |
+| `price` | `double` | Numérico — suporta ordenação e range |
+| `category` | `keyword` | Não analisado — filtro exato |
+| `createdAt` | `date` (ISO 8601) | Suporta ordenação temporal |
+| `updatedAt` | `date` (ISO 8601) | Suporta ordenação temporal |
+
+**Estratégia de busca:**
+
+- `multi_match` em `name` + `description` para o parâmetro `q`
+- `term` filter em `category` quando informado (executa no contexto `bool.filter`, não afeta relevância)
+
+---
+
+## Como rodar localmente
 
 ### Pré-requisitos
 
 - Java 21
-- Docker Desktop — para a infra de observabilidade e testes de integração
+- Docker Desktop
 
-### 1. Suba a infraestrutura local
+### 1. Suba a infraestrutura
+
+Na raiz do repositório:
 
 ```bash
-docker compose up -d
+docker compose -f infrastructure/docker-compose.yml up -d
 ```
 
-Inicia: OTel Collector, Grafana Tempo, Loki, Prometheus e Grafana.
+Inicia: Elasticsearch, Kafka, Zookeeper e o stack de observabilidade (OTel Collector, Grafana, Loki, Prometheus).
 
-### 2. Inicie a aplicação
+### 2. Inicie o serviço
 
 ```bash
-# Logs em texto legível (padrão para dev)
+# A partir de services/search/
 ./mvnw spring-boot:run
+```
 
-# Logs em JSON estruturado (ECS format)
+Com logs em JSON estruturado (ECS):
+
+```bash
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=prod
 ```
 
-Actuator disponível em `http://localhost:8081`:
+### Portas
 
-| Endpoint | Descrição |
+| Serviço | Porta |
 |---|---|
-| `GET /actuator/health` | Status da aplicação e subsistemas |
-| `GET /actuator/info` | Metadados da aplicação |
-| `GET /actuator/metrics` | Lista todas as métricas disponíveis |
+| API REST | `8080` |
+| Actuator (health, metrics) | `8081` |
+| Elasticsearch | `9200` |
+| Kafka | `9092` |
+| Grafana | `3000` (admin/admin) |
 
----
-
-## Observabilidade
-
-A aplicação envia os três sinais via **OTLP HTTP** para um OTel Collector centralizado:
-
-```
-App (:8081)
-  │
-  └─ OTLP HTTP (:4318) ──► OTel Collector
-                                 ├─ Traces   ──► Grafana Tempo  (:3200)
-                                 ├─ Métricas ──► Prometheus     (scrape :8889)
-                                 └─ Logs     ──► Loki           (:3100)
-                                                      │
-                                                Grafana (:3000)
-```
-
-### Acessos locais
-
-| Serviço | URL | Credenciais |
-|---|---|---|
-| Grafana | http://localhost:3000 | `admin` / `admin` |
-| Prometheus | http://localhost:9090 | — |
-
-### Sinais exportados
-
-| Sinal | O que é capturado |
-|---|---|
-| **Traces** | Spans gerados automaticamente pelo Spring para cada operação instrumentada |
-| **Métricas** | JVM, pool de threads e métricas customizadas via Micrometer |
-| **Logs** | Todos os logs do Logback com `traceId` e `spanId` no contexto |
-
-### Configuração
-
-```yaml
-# application.yaml
-management:
-  tracing:
-    sampling:
-      probability: 1.0          # 100% em dev — reduza em produção (ex: 0.1)
-  otlp:
-    metrics:
-      export:
-        url: http://localhost:4318/v1/metrics
-  opentelemetry:
-    tracing:
-      export:
-        otlp:
-          endpoint: http://localhost:4318/v1/traces
-    logging:
-      export:
-        otlp:
-          endpoint: http://localhost:4318/v1/logs
-  logging:
-    export:
-      otlp:
-        enabled: true
-```
-
-> [!IMPORTANT]
-> `management.logging.export.otlp.enabled: true` é obrigatório no Spring Boot 4. Sem essa propriedade o bean `OtlpHttpLogRecordExporter` não é criado e os logs são descartados silenciosamente.
-
----
-
-## Logs
-
-Os logs são exportados via `OpenTelemetryAppender` (`logback-spring.xml`). Cada linha carrega automaticamente o `traceId` e `spanId` do contexto em curso, permitindo navegar de um trace no Grafana Tempo diretamente para os logs no Loki.
-
-Em desenvolvimento os logs são impressos em texto plano. Com o profile `prod` o formato muda para **JSON estruturado (ECS)**:
+### Actuator
 
 ```bash
-SPRING_PROFILES_ACTIVE=prod java -jar app.jar
+curl http://localhost:8081/actuator/health
 ```
 
-### Adicionando logs
-
-```java
-@Service
-public class PedidoService {
-
-    private static final Logger log = LoggerFactory.getLogger(PedidoService.class);
-
-    public PedidoResponse buscar(Long id) {
-        log.info("Buscando pedido id={}", id);
-        // ...
-    }
-}
+```json
+{ "status": "UP" }
 ```
-
-### Enriquecendo com MDC
-
-Campos adicionados ao MDC aparecem como atributos no Loki e ficam disponíveis como filtros no Grafana:
-
-```java
-MDC.put("pedido.id", id.toString());
-MDC.put("pedido.status", status);
-try {
-    log.info("Processando pagamento");
-} finally {
-    MDC.remove("pedido.id");
-    MDC.remove("pedido.status");
-}
-```
-
-### Exemplo futuro: JDBC tracing
-
-<details>
-<summary>Como adicionar spans de queries SQL ao trace</summary>
-
-Ao integrar um banco de dados, adicione `datasource-micrometer-spring-boot` para obter spans automáticos de cada query SQL como filhos do trace:
-
-```xml
-<!-- pom.xml -->
-<dependency>
-    <groupId>net.ttddyy.observation</groupId>
-    <artifactId>datasource-micrometer-spring-boot</artifactId>
-    <version>2.2.1</version>
-</dependency>
-```
-
-Nenhuma configuração extra é necessária. O Spring Boot auto-configura um proxy na `DataSource` que instrumenta qualquer tecnologia JDBC: JPA, Spring Data JDBC, JdbcTemplate, jOOQ, Flyway, etc.
-
-O trace no Grafana Tempo ganha a estrutura completa:
-
-```
-HTTP POST /pedidos                          (200ms)
-  └─ PedidoService.criar                   (180ms)
-       ├─ SELECT * FROM produtos WHERE ...  (12ms)
-       └─ INSERT INTO pedidos ...           (8ms)
-```
-
-</details>
 
 ---
 
-## Testes e qualidade de código
+## Testes e qualidade
 
-### Nomenclatura e executores
+### Estrutura
 
-| Sufixo | Executor | Contexto Spring | Docker |
+| Sufixo | Executor | Infraestrutura | Descrição |
 |---|---|---|---|
-| `*Test` | Surefire — `./mvnw test` | Não | Não |
-| `*IT` | Failsafe — `./mvnw verify` | Sim (`@SpringBootTest`) | Sim |
+| `*Test` | Surefire (`./mvnw test`) | Nenhuma | Testes unitários com Mockito |
+| `*IT` | Failsafe (`./mvnw verify`) | Testcontainers | Testes de integração com ES + Kafka reais |
 
-O Surefire executa apenas `*Test` — rápido, sem infraestrutura. O Failsafe executa `*IT` após o empacotamento e garante teardown mesmo em caso de falha.
+Os testes de integração sobem containers Docker reais via Testcontainers — sem mocks de infraestrutura.
 
 ### Comandos
 
 ```bash
-# Apenas testes unitários (sem Docker)
+# Testes unitários (sem Docker)
 ./mvnw test
 
 # Build completo: unitários + integração + cobertura + análise estática
 ./mvnw verify
 
-# Relatório de cobertura sem forçar threshold
+# Relatório de cobertura
 ./mvnw test jacoco:report
 # → target/site/jacoco/index.html
-
-# Apenas análise estática
-./mvnw spotbugs:check pmd:check
 ```
 
-### Quality gates
+### Quality gates (executados em `./mvnw verify`)
 
-Todos executados automaticamente em `./mvnw verify`:
-
-| Ferramenta | O que verifica | Falha o build se... |
+| Ferramenta | Critério | Build falha se... |
 |---|---|---|
-| **JaCoCo** | Cobertura de testes | LINE ou BRANCH < 80% |
-| **SpotBugs** | Bugs em bytecode | Qualquer bug encontrado |
+| **JaCoCo** | Cobertura de linha e branch | LINE ou BRANCH < 80% |
+| **SpotBugs** | Análise de bytecode | Qualquer bug detectado |
 | **PMD** | Qualidade do código-fonte | Qualquer violação |
 
-> [!NOTE]
 > Classes excluídas do JaCoCo: `*Application`, `*Configuration`, `*Properties`.
 
-Para suprimir um falso positivo pontual:
-
-```java
-// SpotBugs
-@SuppressFBWarnings(value = "NP_NULL_ON_SOME_PATH", justification = "valor nunca é null por invariante do domínio")
-
-// PMD
-@SuppressWarnings("PMD.NomeDaRegra")
-```
-
 ---
 
-## Como escrever testes
+## Observabilidade
 
-### Teste unitário puro
-
-Use quando a classe não tem dependências externas. Não sobe contexto Spring.
-
-```java
-class PedidoCalculadorTest {
-
-    private final PedidoCalculador calculador = new PedidoCalculador();
-
-    @Test
-    void deveCalcularTotalComDesconto() {
-        BigDecimal total = calculador.calcular(new BigDecimal("100.00"), 10);
-
-        assertThat(total).isEqualByComparingTo("90.00");
-    }
-}
-```
-
-### Teste unitário com mock (Mockito puro)
-
-Use quando a classe tem dependências que precisam ser isoladas. Sem Spring, sem Docker — o mais rápido.
-
-```java
-@ExtendWith(MockitoExtension.class)
-class PedidoServiceTest {
-
-    @Mock
-    private PedidoRepository repository;
-
-    @InjectMocks
-    private PedidoService service;
-
-    @Test
-    void deveBuscarPedidoPorId() {
-        when(repository.findById(1L)).thenReturn(Optional.of(new Pedido(1L, "Em andamento")));
-
-        var resultado = service.buscar(1L);
-
-        assertThat(resultado.status()).isEqualTo("Em andamento");
-        verify(repository).findById(1L);
-    }
-
-    @Test
-    void deveLancarExcecaoQuandoNaoEncontrado() {
-        when(repository.findById(99L)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> service.buscar(99L))
-                .isInstanceOf(PedidoNaoEncontradoException.class);
-    }
-}
-```
-
-### Teste com mock de bean Spring (`@MockitoBean`)
-
-Use quando precisa do contexto Spring mas quer substituir um bean por um mock — útil para isolar dependências externas como clientes HTTP ou gateways.
-
-Declare os mocks em `MockConfiguration` (já presente em `src/test`):
-
-```java
-@TestConfiguration(proxyBeanMethods = false)
-public class MockConfiguration {
-
-    @Bean
-    PagamentoGateway pagamentoGateway() {
-        return Mockito.mock(PagamentoGateway.class);
-    }
-}
-```
-
-```java
-@SpringBootTest
-@Import(MockConfiguration.class)
-class PedidoServiceSpringTest {
-
-    @Autowired
-    private PedidoService service;
-
-    @MockitoBean
-    private PedidoRepository repository;
-
-    @Test
-    void deveBuscarPedidoComContextoSpring() {
-        when(repository.findById(1L)).thenReturn(Optional.of(new Pedido(1L, "Aprovado")));
-
-        assertThat(service.buscar(1L).status()).isEqualTo("Aprovado");
-    }
-}
-```
-
-### Teste de integração com Testcontainers
-
-Use para testar o fluxo completo com infraestrutura real em Docker. O sufixo `IT` garante execução no Failsafe, onde o Docker está disponível.
-
-**Passo 1 — Configure o container em `TestcontainersConfiguration`** (já presente em `src/test`):
-
-```java
-@TestConfiguration(proxyBeanMethods = false)
-@Testcontainers
-public class TestcontainersConfiguration {
-
-    @Bean
-    @ServiceConnection
-    PostgreSQLContainer<?> postgresContainer() {
-        return new PostgreSQLContainer<>(DockerImageName.parse("postgres:17"));
-    }
-}
-```
-
-> [!TIP]
-> `@ServiceConnection` configura automaticamente `spring.datasource.*` apontando para o container — sem properties manuais. Adicione `org.testcontainers:postgresql` no `pom.xml` ao usar PostgreSQL.
-
-**Passo 2 — Escreva o teste:**
-
-```java
-@SpringBootTest
-@Import(TestcontainersConfiguration.class)
-class PedidoRepositoryIT {
-
-    @Autowired
-    private PedidoRepository repository;
-
-    @Test
-    @Transactional
-    void devePersistirEBuscarPedido() {
-        var pedido = repository.save(new Pedido("Novo"));
-
-        var encontrado = repository.findById(pedido.getId());
-
-        assertThat(encontrado).isPresent();
-        assertThat(encontrado.get().getStatus()).isEqualTo("Novo");
-    }
-}
-```
-
----
-
-## CI — GitHub Actions
-
-O workflow [`.github/workflows/quality.yml`](.github/workflows/quality.yml) roda automaticamente em todo push e pull request.
+O serviço exporta os três sinais via **OTLP HTTP** para o OTel Collector:
 
 ```
-push / pull_request
-       │
-       ▼
-  Checkout + Java 21 (Temurin, cache Maven)
-       │
-       ▼
-  ./mvnw verify
-  ├── Compila
-  ├── Testes unitários (Surefire)
-  ├── Testes de integração (Failsafe + Docker)
-  ├── Cobertura JaCoCo ≥ 80%
-  ├── SpotBugs
-  └── PMD
-       │
-       ▼
-  Upload relatório JaCoCo (artefato, 1 dia)
+search-service (:8081)
+  │
+  └─ OTLP HTTP (:4318) ──► OTel Collector
+                                ├─ Traces   ──► Grafana Tempo  (:3200)
+                                ├─ Métricas ──► Prometheus     (:9090)
+                                └─ Logs     ──► Loki           (:3100)
+                                                     │
+                                               Grafana (:3000)
 ```
 
-> [!NOTE]
-> O runner `ubuntu-latest` já possui Docker instalado e em execução — por isso os testes de integração com Testcontainers funcionam no CI sem configuração adicional.
+Cada log carrega automaticamente `traceId` e `spanId` — é possível navegar de um trace no Grafana Tempo diretamente para os logs correlacionados no Loki.
+
+Sampling configurado em 100% para desenvolvimento. Reduzir `management.tracing.sampling.probability` em produção.

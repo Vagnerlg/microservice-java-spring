@@ -1,7 +1,5 @@
 package com.github.vagnerlg.search.infrastructure.kafka;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.github.vagnerlg.search.application.ProductSearchService;
 import com.github.vagnerlg.search.domain.Product;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -29,8 +27,7 @@ class ProductEventConsumerTest {
 
     @BeforeEach
     void setUp() {
-        var objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
-        consumer = new ProductEventConsumer(service, objectMapper);
+        consumer = new ProductEventConsumer(service);
     }
 
     @Test

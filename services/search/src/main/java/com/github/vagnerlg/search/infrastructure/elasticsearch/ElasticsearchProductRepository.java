@@ -6,6 +6,7 @@ import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.elasticsearch._types.query_dsl.TermQuery;
 import com.github.vagnerlg.search.domain.Product;
 import com.github.vagnerlg.search.domain.ProductRepository;
+import jakarta.annotation.PostConstruct;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -20,6 +21,16 @@ class ElasticsearchProductRepository implements ProductRepository {
 
     ElasticsearchProductRepository(ElasticsearchOperations operations) {
         this.operations = operations;
+    }
+
+    @PostConstruct
+    void ensureMapping() {
+        var indexOps = operations.indexOps(ProductDocument.class);
+        try {
+            indexOps.createWithMapping();
+        } catch (Exception ignored) {
+            indexOps.putMapping();
+        }
     }
 
     @Override

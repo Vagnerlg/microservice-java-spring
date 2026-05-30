@@ -1,12 +1,12 @@
-name: Quality (product service)
+name: Quality (search service)
 
 on:
   push:
     paths:
-      - 'services/product/**'
+      - 'services/search/**'
   pull_request:
     paths:
-      - 'services/product/**'
+      - 'services/search/**'
 
 jobs:
   quality:
@@ -15,7 +15,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: services/product
+        working-directory: services/search
 
     steps:
       - name: Checkout
@@ -36,5 +36,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: jacoco-report
-          path: services/product/target/site/jacoco/
+          path: services/search/target/site/jacoco/
           retention-days: 1
