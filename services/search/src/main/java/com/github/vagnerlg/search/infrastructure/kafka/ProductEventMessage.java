@@ -1,6 +1,7 @@
 package com.github.vagnerlg.search.infrastructure.kafka;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 
 record ProductEventMessage(String event, ProductData data) {
 
@@ -10,7 +11,7 @@ record ProductEventMessage(String event, ProductData data) {
             String description,
             BigDecimal price,
             String category,
-            String createdAt,
-            String updatedAt
+            Instant createdAt,
+            Instant updatedAt
     ) {}
 }

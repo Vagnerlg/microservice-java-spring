@@ -7,12 +7,16 @@ import com.github.vagnerlg.product.domain.event.ProductCreatedEvent;
 import com.github.vagnerlg.product.domain.exception.ProductAlreadyExistsException;
 import com.github.vagnerlg.product.domain.exception.ProductEventPublishException;
 import com.github.vagnerlg.product.domain.exception.ProductNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 
 @Service
 public class ProductService {
+
+    private static final Logger log = LoggerFactory.getLogger(ProductService.class);
 
     private final ProductRepository productRepository;
     private final ProductEventPublisher eventPublisher;
@@ -32,7 +36,11 @@ public class ProductService {
         try {
             eventPublisher.publish(new ProductCreatedEvent(saved));
         } catch (ProductEventPublishException e) {
-            productRepository.deleteById(saved.id());
+            try {
+                productRepository.deleteById(saved.id());
+            } catch (Exception deleteException) {
+                log.error("Failed to delete product id={} after Kafka publish failure — manual reconciliation required", saved.id(), deleteException);
+            }
             throw e;
         }
         return saved;

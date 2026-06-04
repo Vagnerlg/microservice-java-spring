@@ -77,6 +77,21 @@ class ProductServiceTest {
     }
 
     @Test
+    void create_shouldStillRethrowPublishException_whenDeleteAlsoFails() {
+        var command = new CreateProduct("Notebook X", "desc", BigDecimal.TEN, "Electronics");
+        var saved = new Product("abc123", command.name(), command.description(), command.price(), command.category(), Instant.now(), Instant.now());
+
+        when(productRepository.existsByName(command.name())).thenReturn(false);
+        when(productRepository.save(any())).thenReturn(saved);
+        doThrow(new ProductEventPublishException("abc123", new RuntimeException("kafka down")))
+                .when(eventPublisher).publish(any());
+        doThrow(new RuntimeException("mongo down")).when(productRepository).deleteById("abc123");
+
+        assertThatThrownBy(() -> productService.create(command))
+                .isInstanceOf(ProductEventPublishException.class);
+    }
+
+    @Test
     void findById_shouldReturnProduct_whenExists() {
         var product = new Product("abc123", "Notebook X", "desc", BigDecimal.TEN, "Electronics", Instant.now(), Instant.now());
 

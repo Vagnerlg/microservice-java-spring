@@ -1,5 +1,6 @@
 package com.github.vagnerlg.search.infrastructure.kafka;
 
+import tools.jackson.databind.ObjectMapper;
 import com.github.vagnerlg.search.application.ProductSearchService;
 import com.github.vagnerlg.search.domain.Product;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -9,7 +10,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -27,7 +27,7 @@ class ProductEventConsumerTest {
 
     @BeforeEach
     void setUp() {
-        consumer = new ProductEventConsumer(service);
+        consumer = new ProductEventConsumer(service, new ObjectMapper());
     }
 
     @Test

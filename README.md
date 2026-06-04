@@ -1,12 +1,13 @@
 # microservice-java-spring
 
 [![product-service CI](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/product-quality.yml/badge.svg)](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/product-quality.yml)
+[![search-service CI](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/search-quality.yml/badge.svg)](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/search-quality.yml)
 ![Java](https://img.shields.io/badge/Java-21-orange?logo=openjdk)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0-brightgreen?logo=springboot)
 
 Plataforma de e-commerce construída com **Java 21 + Spring Boot 4**, organizada em microserviços independentes. Cada serviço possui seu próprio banco de dados e se comunica via **Apache Kafka**.
 
-O projeto está em construção progressiva — o `product-service` é o primeiro serviço implementado. Os demais serão adicionados gradualmente.
+O projeto está em construção progressiva — `product-service` e `search-service` já estão implementados. Os demais serão adicionados gradualmente.
 
 ---
 
@@ -34,7 +35,7 @@ O projeto está em construção progressiva — o `product-service` é o primeir
 | `cart-service` | 📋 Planejado | Redis | Carrinho de compras |
 | `user-service` | 📋 Planejado | PostgreSQL | Perfis de usuário |
 | `auth-service` | 📋 Planejado | — | OAuth2/JWT via Keycloak |
-| `search-service` | 📋 Planejado | Elasticsearch | Busca — modelo CQRS |
+| [`search-service`](services/search/) | ✅ Implementado | Elasticsearch | Busca — modelo CQRS read |
 | `notification-service` | 📋 Planejado | — | Consumidor Kafka, sem HTTP |
 | `report-service` | 📋 Planejado | MongoDB | Relatórios e analytics |
 
