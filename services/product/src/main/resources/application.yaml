@@ -1,11 +1,18 @@
+server:
+  port: ${SERVER_PORT:8080}
+
 spring:
   application:
     name: product
-  data:
-    mongodb:
-      uri: mongodb://localhost:27017/product
+  mongodb:
+    host: ${MONGO_HOST:localhost}
+    port: ${MONGO_PORT:27017}
+    username: ${MONGO_USERNAME:admin}
+    password: ${MONGO_PASSWORD:admin}
+    database: ${MONGO_DATABASE:product}
+    authentication-database: ${MONGO_AUTH_DATABASE:admin}
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
     producer:
       acks: all
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
@@ -20,7 +27,7 @@ kafka:
 
 management:
   server:
-    port: 8081
+    port: ${MANAGEMENT_PORT:8081}
   endpoints:
     web:
       exposure:
@@ -34,16 +41,16 @@ management:
   otlp:
     metrics:
       export:
-        url: http://localhost:4318/v1/metrics
+        url: ${OTEL_ENDPOINT:http://localhost:4318}/v1/metrics
   opentelemetry:
     tracing:
       export:
         otlp:
-          endpoint: http://localhost:4318/v1/traces
+          endpoint: ${OTEL_ENDPOINT:http://localhost:4318}/v1/traces
     logging:
       export:
         otlp:
-          endpoint: http://localhost:4318/v1/logs
+          endpoint: ${OTEL_ENDPOINT:http://localhost:4318}/v1/logs
   logging:
     export:
       otlp:

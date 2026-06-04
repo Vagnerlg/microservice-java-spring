@@ -1,10 +1,13 @@
+server:
+  port: ${SERVER_PORT:8082}
+
 spring:
   application:
     name: search
   elasticsearch:
-    uris: http://localhost:9200
+    uris: ${ELASTICSEARCH_URI:http://localhost:9200}
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
     consumer:
       group-id: search-service
       auto-offset-reset: earliest
@@ -17,7 +20,7 @@ kafka:
 
 management:
   server:
-    port: 8081
+    port: ${MANAGEMENT_PORT:8083}
   endpoints:
     web:
       exposure:
@@ -31,16 +34,16 @@ management:
   otlp:
     metrics:
       export:
-        url: http://localhost:4318/v1/metrics
+        url: ${OTEL_ENDPOINT:http://localhost:4318}/v1/metrics
   opentelemetry:
     tracing:
       export:
         otlp:
-          endpoint: http://localhost:4318/v1/traces
+          endpoint: ${OTEL_ENDPOINT:http://localhost:4318}/v1/traces
     logging:
       export:
         otlp:
-          endpoint: http://localhost:4318/v1/logs
+          endpoint: ${OTEL_ENDPOINT:http://localhost:4318}/v1/logs
   logging:
     export:
       otlp:
