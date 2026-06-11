@@ -2,4 +2,15 @@ include:
   - docker-compose.data.yml
   - docker-compose.monitoring.yml
 
-services: {}
+services:
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.2
+    command: start-dev --import-realm
+    ports:
+      - "8089:8080"
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ./config/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json
