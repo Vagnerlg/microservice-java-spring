@@ -1,420 +1,344 @@
-# java-base-project
+# auth-service
 
+[![auth-service CI](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/auth-quality.yml/badge.svg)](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/auth-quality.yml)
 ![Java](https://img.shields.io/badge/Java-21-orange?logo=openjdk)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0-brightgreen?logo=springboot)
-![Quality](https://github.com/Vagnerlg/java-spring-boot-base-project/actions/workflows/quality.yml/badge.svg)
-![Quality](https://github.com/Vagnerlg/java-spring-boot-base-project/actions/workflows/quality.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-JUnit%205%20%2B%20Testcontainers-blue?logo=junit5)
+![Keycloak](https://img.shields.io/badge/Keycloak-26.x-4d4d4d?logo=keycloak)
+![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis)
+![Kafka](https://img.shields.io/badge/Apache%20Kafka-producer-231F20?logo=apachekafka)
 
-Projeto base para novas aplicações **Spring Boot 4 + Java 21**. Fornece a estrutura e os componentes transversais prontos para uso, para que cada novo serviço comece com qualidade e observabilidade já configuradas.
-
-| Componente | Tecnologia | Finalidade |
-|---|---|---|
-| Actuator | Spring Boot Actuator | Health check e métricas expostas |
-| Observabilidade | OpenTelemetry + Micrometer | Traces, métricas e logs via OTLP |
-| Logs estruturados | Logback + OTel Appender | Logs correlacionados com traces |
-| Testes | JUnit 5 + Mockito + Testcontainers | Unitários e integração |
-| Qualidade | JaCoCo + SpotBugs + PMD | Cobertura e análise estática |
-| CI | GitHub Actions | Build e quality gates automáticos |
+Serviço de autenticação da plataforma de e-commerce. Delega identidade e tokens ao **Keycloak**, usa **Redis** para blacklist de JTI e publica o evento `user.CREATED` no **Kafka** a cada novo cadastro.
 
 ---
 
 ## Índice
 
-- [Rodando em desenvolvimento](#rodando-em-desenvolvimento)
-- [Observabilidade](#observabilidade)
-- [Logs](#logs)
-- [Testes e qualidade de código](#testes-e-qualidade-de-código)
-- [Como escrever testes](#como-escrever-testes)
-  - [Teste unitário puro](#teste-unitário-puro)
-  - [Teste unitário com mock](#teste-unitário-com-mock-mockito-puro)
-  - [Teste com mock de bean Spring](#teste-com-mock-de-bean-spring-mockitobean)
-  - [Teste de integração com Testcontainers](#teste-de-integração-com-testcontainers)
-- [CI — GitHub Actions](#ci--github-actions)
+- [Stack](#stack)
+- [Arquitetura interna (DDD)](#arquitetura-interna-ddd)
+- [Integração Keycloak](#integração-keycloak)
+- [API Reference](#api-reference)
+- [Evento Kafka](#evento-kafka)
+- [Como rodar localmente](#como-rodar-localmente)
+- [Testes e qualidade](#testes-e-qualidade)
+- [Limitações e próximos passos](#limitações-e-próximos-passos)
+- [CI](#ci)
 
 ---
 
-## Rodando em desenvolvimento
+## Stack
 
-### Pré-requisitos
+| Camada | Tecnologia |
+|---|---|
+| Linguagem | Java 21 (records, virtual threads) |
+| Framework | Spring Boot 4.0 |
+| Identidade | Keycloak 26.x (OAuth2 / OIDC) |
+| Cache / Blacklist | Redis 7 |
+| Mensageria | Apache Kafka |
+| HTTP client | Spring RestClient |
+| Observabilidade | OpenTelemetry + Grafana (Tempo · Loki · Prometheus) |
+| Testes | JUnit 5 + Mockito + Testcontainers |
+| Qualidade | JaCoCo · SpotBugs · PMD |
+| CI | GitHub Actions |
 
-- Java 21
-- Docker Desktop — para a infra de observabilidade e testes de integração
+---
 
-### 1. Suba a infraestrutura local
+## Arquitetura interna (DDD)
+
+O serviço segue **DDD sem hexagonal** — as camadas de aplicação chamam a infraestrutura diretamente, sem interfaces de porta no domínio:
+
+```
+com.github.vagnerlg.auth/
+├── domain/               # Entidades (User, AuthToken) e exceções de domínio
+├── application/          # Casos de uso — orquestram domínio e infraestrutura
+│   ├── RegisterUserService
+│   ├── LoginService
+│   ├── RefreshTokenService
+│   └── LogoutService
+└── infrastructure/
+    ├── keycloak/         # Admin API + OIDC token endpoint (RestClient)
+    ├── redis/            # Blacklist de JTI (RedisTemplate)
+    ├── kafka/            # Publicação de eventos de usuário
+    └── web/              # Controladores REST + GlobalExceptionHandler
+```
+
+---
+
+## Integração Keycloak
+
+O auth-service não armazena usuários nem senhas localmente. Toda a identidade fica no Keycloak, realm `ecommerce`.
+
+### Registro (`POST /auth/register`)
+
+```
+auth-service
+  │
+  ├─► POST /admin/realms/ecommerce/users          (Admin API — cria usuário)
+  ├─► PUT  /admin/realms/ecommerce/users/{id}/reset-password  (define senha)
+  ├─► PUT  /admin/realms/ecommerce/users/{id}     (limpa required actions)
+  └─► Kafka topic: user → evento CREATED
+```
+
+O token de admin é obtido via ROPC no realm `master` com `admin-cli`. A etapa de limpeza de `requiredActions` é necessária em Keycloak 26.x, que adiciona `VERIFY_PROFILE` dinamicamente — ver [nota técnica](#limitações-e-próximos-passos).
+
+### Login (`POST /auth/login`)
+
+Usa o grant type **Resource Owner Password Credentials (ROPC)** no endpoint:
+
+```
+POST /realms/ecommerce/protocol/openid-connect/token
+grant_type=password
+```
+
+Retorna `access_token` (TTL 5 min) e `refresh_token`.
+
+### Refresh (`POST /auth/refresh`)
+
+```
+POST /realms/ecommerce/protocol/openid-connect/token
+grant_type=refresh_token
+```
+
+### Logout (`POST /auth/logout`)
+
+Duas ações em sequência:
+
+1. Revoga o `refresh_token` no Keycloak (`/protocol/openid-connect/logout`)
+2. Extrai o `jti` e `exp` do `access_token` (decodificação manual do payload JWT em Base64) e persiste a chave `blacklist:{jti}` no Redis com TTL = tempo restante até `exp`
+
+```
+blacklist:{jti}  →  TTL = exp - now()  →  Redis
+```
+
+Qualquer serviço que receba o `access_token` pode verificar se o JTI está na blacklist antes de aceitar a requisição.
+
+---
+
+## API Reference
+
+A aplicação sobe na porta `8084`. O Actuator fica na porta `8088`.
+
+### POST /auth/register
+
+Cadastra um novo usuário no Keycloak e publica o evento `user.CREATED` no Kafka.
+
+```bash
+curl -s -X POST http://localhost:8084/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "joao",
+    "name": "João Silva",
+    "password": "Senh@123!"
+  }' | jq
+```
+
+**`201 Created`**
+
+```json
+{
+  "data": {
+    "keycloakId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "username": "joao"
+  }
+}
+```
+
+---
+
+### POST /auth/login
+
+Autentica o usuário via ROPC e retorna os tokens Keycloak.
+
+```bash
+curl -s -X POST http://localhost:8084/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "joao",
+    "password": "Senh@123!"
+  }' | jq
+```
+
+**`200 OK`**
+
+```json
+{
+  "data": {
+    "accessToken": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "expiresIn": 300
+  }
+}
+```
+
+---
+
+### POST /auth/refresh
+
+Troca o `refreshToken` por um novo par de tokens.
+
+```bash
+curl -s -X POST http://localhost:8084/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }' | jq
+```
+
+**`200 OK`** — mesmo formato do login.
+
+---
+
+### POST /auth/logout
+
+Revoga o refresh token no Keycloak e insere o JTI do access token na blacklist Redis.
+
+```bash
+curl -s -X POST http://localhost:8084/auth/logout \
+  -H "Content-Type: application/json" \
+  -d '{
+    "accessToken": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }'
+```
+
+**`204 No Content`**
+
+---
+
+### Erros
+
+| Status | Situação |
+|---|---|
+| `401 Unauthorized` | Credenciais inválidas ou refresh token expirado |
+| `409 Conflict` | Username já cadastrado no Keycloak |
+| `422 Unprocessable Entity` | Campos inválidos (Bean Validation) |
+| `500 Internal Server Error` | Falha ao publicar evento no Kafka |
+
+**Exemplo de erro de validação:**
+
+```json
+{
+  "errors": [
+    { "field": "password", "message": "tamanho deve ser entre 8 e 2147483647" },
+    { "field": "username", "message": "não deve estar em branco" }
+  ]
+}
+```
+
+---
+
+## Evento Kafka
+
+Ao concluir o registro com sucesso, o serviço publica no tópico `user`.
+
+| Tópico | Evento | Trigger |
+|---|---|---|
+| `user` | `CREATED` | `POST /auth/register` bem-sucedido |
+
+**Formato da mensagem (JSON):**
+
+```json
+{
+  "event": "CREATED",
+  "data": {
+    "keycloakId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "username": "joao",
+    "name": "João Silva",
+    "createdAt": "2026-06-11T23:00:00Z"
+  }
+}
+```
+
+**Consumidor esperado:** `user-service` — persiste o perfil do usuário no PostgreSQL a partir deste evento.
+
+---
+
+## Como rodar localmente
+
+**Pré-requisitos:** Java 21 e Docker.
+
+### 1. Suba a infraestrutura
+
+Na raiz do repositório:
 
 ```bash
 docker compose up -d
 ```
 
-Inicia: OTel Collector, Grafana Tempo, Loki, Prometheus e Grafana.
+O `docker-compose.yml` inclui automaticamente `docker-compose.data.yml` (MongoDB, Kafka, Elasticsearch, Redis, Schema Registry) e `docker-compose.monitoring.yml` (OTel Collector, Grafana, Loki, Prometheus, Tempo). Para o auth-service os serviços essenciais são Keycloak (`:8089`) e Redis (`:6379`).
 
-### 2. Inicie a aplicação
+### 2. Inicie o serviço
 
 ```bash
-# Logs em texto legível (padrão para dev)
+# A partir de services/auth/
 ./mvnw spring-boot:run
-
-# Logs em JSON estruturado (ECS format)
-./mvnw spring-boot:run -Dspring-boot.run.profiles=prod
 ```
 
-Actuator disponível em `http://localhost:8081`:
+### Variáveis de ambiente (com defaults para dev)
 
-| Endpoint | Descrição |
-|---|---|
-| `GET /actuator/health` | Status da aplicação e subsistemas |
-| `GET /actuator/info` | Metadados da aplicação |
-| `GET /actuator/metrics` | Lista todas as métricas disponíveis |
-
----
-
-## Observabilidade
-
-A aplicação envia os três sinais via **OTLP HTTP** para um OTel Collector centralizado:
-
-```
-App (:8081)
-  │
-  └─ OTLP HTTP (:4318) ──► OTel Collector
-                                 ├─ Traces   ──► Grafana Tempo  (:3200)
-                                 ├─ Métricas ──► Prometheus     (scrape :8889)
-                                 └─ Logs     ──► Loki           (:3100)
-                                                      │
-                                                Grafana (:3000)
-```
-
-### Acessos locais
-
-| Serviço | URL | Credenciais |
+| Variável | Default | Descrição |
 |---|---|---|
-| Grafana | http://localhost:3000 | `admin` / `admin` |
-| Prometheus | http://localhost:9090 | — |
+| `SERVER_PORT` | `8084` | Porta da API |
+| `MANAGEMENT_PORT` | `8088` | Porta do Actuator |
+| `REDIS_HOST` | `localhost` | Host do Redis |
+| `REDIS_PORT` | `6379` | Porta do Redis |
+| `KAFKA_BROKERS` | `localhost:9092` | Bootstrap servers do Kafka |
+| `KEYCLOAK_SERVER_URL` | `http://localhost:8089` | URL base do Keycloak |
+| `KEYCLOAK_REALM` | `ecommerce` | Realm dos usuários |
+| `KEYCLOAK_CLIENT_ID` | `auth-service` | Client ID no Keycloak |
+| `KEYCLOAK_CLIENT_SECRET` | `auth-service-secret` | Client secret |
+| `KEYCLOAK_ADMIN` | `admin` | Usuário admin do realm master |
+| `KEYCLOAK_ADMIN_PASSWORD` | `admin` | Senha do admin |
+| `OTEL_ENDPOINT` | `http://localhost:4318` | Endpoint do OTel Collector |
 
-### Sinais exportados
-
-| Sinal | O que é capturado |
-|---|---|
-| **Traces** | Spans gerados automaticamente pelo Spring para cada operação instrumentada |
-| **Métricas** | JVM, pool de threads e métricas customizadas via Micrometer |
-| **Logs** | Todos os logs do Logback com `traceId` e `spanId` no contexto |
-
-### Configuração
-
-```yaml
-# application.yaml
-management:
-  tracing:
-    sampling:
-      probability: 1.0          # 100% em dev — reduza em produção (ex: 0.1)
-  otlp:
-    metrics:
-      export:
-        url: http://localhost:4318/v1/metrics
-  opentelemetry:
-    tracing:
-      export:
-        otlp:
-          endpoint: http://localhost:4318/v1/traces
-    logging:
-      export:
-        otlp:
-          endpoint: http://localhost:4318/v1/logs
-  logging:
-    export:
-      otlp:
-        enabled: true
-```
-
-> [!IMPORTANT]
-> `management.logging.export.otlp.enabled: true` é obrigatório no Spring Boot 4. Sem essa propriedade o bean `OtlpHttpLogRecordExporter` não é criado e os logs são descartados silenciosamente.
-
----
-
-## Logs
-
-Os logs são exportados via `OpenTelemetryAppender` (`logback-spring.xml`). Cada linha carrega automaticamente o `traceId` e `spanId` do contexto em curso, permitindo navegar de um trace no Grafana Tempo diretamente para os logs no Loki.
-
-Em desenvolvimento os logs são impressos em texto plano. Com o profile `prod` o formato muda para **JSON estruturado (ECS)**:
+### Actuator
 
 ```bash
-SPRING_PROFILES_ACTIVE=prod java -jar app.jar
+curl http://localhost:8088/actuator/health
 ```
 
-### Adicionando logs
-
-```java
-@Service
-public class PedidoService {
-
-    private static final Logger log = LoggerFactory.getLogger(PedidoService.class);
-
-    public PedidoResponse buscar(Long id) {
-        log.info("Buscando pedido id={}", id);
-        // ...
-    }
-}
+```json
+{ "status": "UP" }
 ```
-
-### Enriquecendo com MDC
-
-Campos adicionados ao MDC aparecem como atributos no Loki e ficam disponíveis como filtros no Grafana:
-
-```java
-MDC.put("pedido.id", id.toString());
-MDC.put("pedido.status", status);
-try {
-    log.info("Processando pagamento");
-} finally {
-    MDC.remove("pedido.id");
-    MDC.remove("pedido.status");
-}
-```
-
-### Exemplo futuro: JDBC tracing
-
-<details>
-<summary>Como adicionar spans de queries SQL ao trace</summary>
-
-Ao integrar um banco de dados, adicione `datasource-micrometer-spring-boot` para obter spans automáticos de cada query SQL como filhos do trace:
-
-```xml
-<!-- pom.xml -->
-<dependency>
-    <groupId>net.ttddyy.observation</groupId>
-    <artifactId>datasource-micrometer-spring-boot</artifactId>
-    <version>2.2.1</version>
-</dependency>
-```
-
-Nenhuma configuração extra é necessária. O Spring Boot auto-configura um proxy na `DataSource` que instrumenta qualquer tecnologia JDBC: JPA, Spring Data JDBC, JdbcTemplate, jOOQ, Flyway, etc.
-
-O trace no Grafana Tempo ganha a estrutura completa:
-
-```
-HTTP POST /pedidos                          (200ms)
-  └─ PedidoService.criar                   (180ms)
-       ├─ SELECT * FROM produtos WHERE ...  (12ms)
-       └─ INSERT INTO pedidos ...           (8ms)
-```
-
-</details>
 
 ---
 
-## Testes e qualidade de código
+## Testes e qualidade
 
-### Nomenclatura e executores
-
-| Sufixo | Executor | Contexto Spring | Docker |
+| Sufixo | Executor | Infraestrutura | Descrição |
 |---|---|---|---|
-| `*Test` | Surefire — `./mvnw test` | Não | Não |
-| `*IT` | Failsafe — `./mvnw verify` | Sim (`@SpringBootTest`) | Sim |
-
-O Surefire executa apenas `*Test` — rápido, sem infraestrutura. O Failsafe executa `*IT` após o empacotamento e garante teardown mesmo em caso de falha.
-
-### Comandos
+| `*Test` | Surefire (`./mvnw test`) | Nenhuma | Testes unitários com Mockito |
+| `*IT` | Failsafe (`./mvnw verify`) | Testcontainers | Testes de integração com Keycloak + Redis + Kafka reais |
 
 ```bash
-# Apenas testes unitários (sem Docker)
+# Testes unitários (sem Docker)
 ./mvnw test
 
 # Build completo: unitários + integração + cobertura + análise estática
 ./mvnw verify
-
-# Relatório de cobertura sem forçar threshold
-./mvnw test jacoco:report
-# → target/site/jacoco/index.html
-
-# Apenas análise estática
-./mvnw spotbugs:check pmd:check
 ```
 
 ### Quality gates
 
-Todos executados automaticamente em `./mvnw verify`:
-
-| Ferramenta | O que verifica | Falha o build se... |
+| Ferramenta | Critério | Build falha se... |
 |---|---|---|
-| **JaCoCo** | Cobertura de testes | LINE ou BRANCH < 80% |
-| **SpotBugs** | Bugs em bytecode | Qualquer bug encontrado |
+| **JaCoCo** | Cobertura de linha e branch | LINE ou BRANCH < 80% |
+| **SpotBugs** | Análise de bytecode | Qualquer bug detectado |
 | **PMD** | Qualidade do código-fonte | Qualquer violação |
 
-> [!NOTE]
-> Classes excluídas do JaCoCo: `*Application`, `*Configuration`, `*Properties`.
+> Classes excluídas do JaCoCo: `AuthApplication`, `*Configuration`, `*Properties`.
 
-Para suprimir um falso positivo pontual:
-
-```java
-// SpotBugs
-@SuppressFBWarnings(value = "NP_NULL_ON_SOME_PATH", justification = "valor nunca é null por invariante do domínio")
-
-// PMD
-@SuppressWarnings("PMD.NomeDaRegra")
-```
+Os testes de integração usam **Testcontainers** com containers reais de Keycloak 26.2, Redis 7 e Kafka. Nenhuma infraestrutura local é necessária para rodá-los.
 
 ---
 
-## Como escrever testes
+## Limitações e próximos passos
 
-### Teste unitário puro
+### Endpoints sem proteção inbound
 
-Use quando a classe não tem dependências externas. Não sobe contexto Spring.
-
-```java
-class PedidoCalculadorTest {
-
-    private final PedidoCalculador calculador = new PedidoCalculador();
-
-    @Test
-    void deveCalcularTotalComDesconto() {
-        BigDecimal total = calculador.calcular(new BigDecimal("100.00"), 10);
-
-        assertThat(total).isEqualByComparingTo("90.00");
-    }
-}
-```
-
-### Teste unitário com mock (Mockito puro)
-
-Use quando a classe tem dependências que precisam ser isoladas. Sem Spring, sem Docker — o mais rápido.
-
-```java
-@ExtendWith(MockitoExtension.class)
-class PedidoServiceTest {
-
-    @Mock
-    private PedidoRepository repository;
-
-    @InjectMocks
-    private PedidoService service;
-
-    @Test
-    void deveBuscarPedidoPorId() {
-        when(repository.findById(1L)).thenReturn(Optional.of(new Pedido(1L, "Em andamento")));
-
-        var resultado = service.buscar(1L);
-
-        assertThat(resultado.status()).isEqualTo("Em andamento");
-        verify(repository).findById(1L);
-    }
-
-    @Test
-    void deveLancarExcecaoQuandoNaoEncontrado() {
-        when(repository.findById(99L)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> service.buscar(99L))
-                .isInstanceOf(PedidoNaoEncontradoException.class);
-    }
-}
-```
-
-### Teste com mock de bean Spring (`@MockitoBean`)
-
-Use quando precisa do contexto Spring mas quer substituir um bean por um mock — útil para isolar dependências externas como clientes HTTP ou gateways.
-
-Declare os mocks em `MockConfiguration` (já presente em `src/test`):
-
-```java
-@TestConfiguration(proxyBeanMethods = false)
-public class MockConfiguration {
-
-    @Bean
-    PagamentoGateway pagamentoGateway() {
-        return Mockito.mock(PagamentoGateway.class);
-    }
-}
-```
-
-```java
-@SpringBootTest
-@Import(MockConfiguration.class)
-class PedidoServiceSpringTest {
-
-    @Autowired
-    private PedidoService service;
-
-    @MockitoBean
-    private PedidoRepository repository;
-
-    @Test
-    void deveBuscarPedidoComContextoSpring() {
-        when(repository.findById(1L)).thenReturn(Optional.of(new Pedido(1L, "Aprovado")));
-
-        assertThat(service.buscar(1L).status()).isEqualTo("Aprovado");
-    }
-}
-```
-
-### Teste de integração com Testcontainers
-
-Use para testar o fluxo completo com infraestrutura real em Docker. O sufixo `IT` garante execução no Failsafe, onde o Docker está disponível.
-
-**Passo 1 — Configure o container em `TestcontainersConfiguration`** (já presente em `src/test`):
-
-```java
-@TestConfiguration(proxyBeanMethods = false)
-@Testcontainers
-public class TestcontainersConfiguration {
-
-    @Bean
-    @ServiceConnection
-    PostgreSQLContainer<?> postgresContainer() {
-        return new PostgreSQLContainer<>(DockerImageName.parse("postgres:17"));
-    }
-}
-```
-
-> [!TIP]
-> `@ServiceConnection` configura automaticamente `spring.datasource.*` apontando para o container — sem properties manuais. Adicione `org.testcontainers:postgresql` no `pom.xml` ao usar PostgreSQL.
-
-**Passo 2 — Escreva o teste:**
-
-```java
-@SpringBootTest
-@Import(TestcontainersConfiguration.class)
-class PedidoRepositoryIT {
-
-    @Autowired
-    private PedidoRepository repository;
-
-    @Test
-    @Transactional
-    void devePersistirEBuscarPedido() {
-        var pedido = repository.save(new Pedido("Novo"));
-
-        var encontrado = repository.findById(pedido.getId());
-
-        assertThat(encontrado).isPresent();
-        assertThat(encontrado.get().getStatus()).isEqualTo("Novo");
-    }
-}
-```
+Os endpoints `/auth/*` não validam JWT de entrada — qualquer requisição sem token é aceita. A proteção via `@EnableJwtValidation` (da `security-lib` da plataforma) está deferida para quando a lib estiver disponível. **Em produção, proteja os endpoints via API Gateway / Traefik.**
 
 ---
 
-## CI — GitHub Actions
+## CI
 
-O workflow [`.github/workflows/quality.yml`](.github/workflows/quality.yml) roda automaticamente em todo push e pull request.
-
-```
-push / pull_request
-       │
-       ▼
-  Checkout + Java 21 (Temurin, cache Maven)
-       │
-       ▼
-  ./mvnw verify
-  ├── Compila
-  ├── Testes unitários (Surefire)
-  ├── Testes de integração (Failsafe + Docker)
-  ├── Cobertura JaCoCo ≥ 80%
-  ├── SpotBugs
-  └── PMD
-       │
-       ▼
-  Upload relatório JaCoCo (artefato, 1 dia)
-```
-
-> [!NOTE]
-> O runner `ubuntu-latest` já possui Docker instalado e em execução — por isso os testes de integração com Testcontainers funcionam no CI sem configuração adicional.
+O workflow [`auth-quality.yml`](../../.github/workflows/auth-quality.yml) dispara em todo push e pull request que altere arquivos em `services/auth/`. Executa `./mvnw verify` no runner `ubuntu-latest` e publica o relatório JaCoCo como artefato.

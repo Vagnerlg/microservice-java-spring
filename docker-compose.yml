@@ -4,6 +4,12 @@ include:
 
 services:
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --save "" --appendonly no
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.2
     command: start-dev --import-realm

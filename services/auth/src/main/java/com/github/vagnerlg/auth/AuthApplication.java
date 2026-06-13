@@ -1,4 +1,4 @@
-package com.github.vagnerlg.main;
+package com.github.vagnerlg.auth;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -7,7 +7,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class AuthApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.run(MainApplication.class, args);
+		SpringApplication.run(AuthApplication.class, args);
 	}
 
 }

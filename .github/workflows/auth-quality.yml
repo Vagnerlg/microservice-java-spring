@@ -1,0 +1,16 @@
+name: Quality (auth service)
+
+on:
+  push:
+    paths:
+      - 'services/auth/**'
+  pull_request:
+    paths:
+      - 'services/auth/**'
+
+jobs:
+  quality:
+    uses: ./.github/workflows/quality-reusable.yml
+    with:
+      service-path: services/auth
+      service-name: auth

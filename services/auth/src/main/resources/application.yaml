@@ -1,10 +1,31 @@
+server:
+  port: ${SERVER_PORT:8084}
+
 spring:
   application:
-    name: main
+    name: auth
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
+
+kafka:
+  topics:
+    user: user
+
+keycloak:
+  server-url: ${KEYCLOAK_SERVER_URL:http://localhost:8089}
+  realm: ${KEYCLOAK_REALM:ecommerce}
+  client-id: ${KEYCLOAK_CLIENT_ID:auth-service}
+  client-secret: ${KEYCLOAK_CLIENT_SECRET:auth-service-secret}
+  admin-username: ${KEYCLOAK_ADMIN:admin}
+  admin-password: ${KEYCLOAK_ADMIN_PASSWORD:admin}
 
 management:
   server:
-    port: 8081
+    port: ${MANAGEMENT_PORT:8088}
   endpoints:
     web:
       exposure:
@@ -18,16 +39,16 @@ management:
   otlp:
     metrics:
       export:
-        url: http://localhost:4318/v1/metrics
+        url: ${OTEL_ENDPOINT:http://localhost:4318}/v1/metrics
   opentelemetry:
     tracing:
       export:
         otlp:
-          endpoint: http://localhost:4318/v1/traces
+          endpoint: ${OTEL_ENDPOINT:http://localhost:4318}/v1/traces
     logging:
       export:
         otlp:
-          endpoint: http://localhost:4318/v1/logs
+          endpoint: ${OTEL_ENDPOINT:http://localhost:4318}/v1/logs
   logging:
     export:
       otlp:
