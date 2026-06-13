@@ -44,14 +44,14 @@ A camada de domínio não conhece Spring nem MongoDB. As dependências apontam s
 
 ## API
 
-A aplicação sobe na porta `8080`. O Actuator fica na porta `8081`.
+A aplicação sobe na porta `8101`. O Actuator fica na porta `8102`.
 
 ### POST /products
 
 Cria um novo produto. Retorna `409` se já existir um produto com o mesmo nome.
 
 ```bash
-curl -s -X POST http://localhost:8080/products \
+curl -s -X POST http://localhost:8101/products \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Teclado Mecânico",
@@ -80,7 +80,7 @@ curl -s -X POST http://localhost:8080/products \
 Busca um produto pelo ID. Retorna `404` se não encontrado.
 
 ```bash
-curl -s http://localhost:8080/products/6650a1f3e4b09c2d3f8a1234 | jq
+curl -s http://localhost:8101/products/6650a1f3e4b09c2d3f8a1234 | jq
 ```
 
 ```json
@@ -181,7 +181,7 @@ docker run -d --name kafka -p 9092:9092 \
 ./mvnw spring-boot:run
 ```
 
-Actuator disponível em `http://localhost:8081/actuator/health`.
+Actuator disponível em `http://localhost:8102/actuator/health`.
 
 ---
 

@@ -149,7 +149,7 @@ Busca full-text paginada no catálogo de produtos.
 **Exemplo de requisição**
 
 ```bash
-curl "http://localhost:8080/products/search?q=tênis&category=calcados&page=0&size=5"
+curl "http://localhost:8110/products/search?q=tênis&category=calcados&page=0&size=5"
 ```
 
 **Exemplo de resposta** `200 OK`
@@ -233,8 +233,8 @@ Com logs em JSON estruturado (ECS):
 
 | Serviço | Porta |
 |---|---|
-| API REST | `8080` |
-| Actuator (health, metrics) | `8081` |
+| API REST | `8110` |
+| Actuator (health, metrics) | `8111` |
 | Elasticsearch | `9200` |
 | Kafka | `9092` |
 | Grafana | `3000` (admin/admin) |
@@ -242,7 +242,7 @@ Com logs em JSON estruturado (ECS):
 ### Actuator
 
 ```bash
-curl http://localhost:8081/actuator/health
+curl http://localhost:8111/actuator/health
 ```
 
 ```json
@@ -293,7 +293,7 @@ Os testes de integração sobem containers Docker reais via Testcontainers — s
 O serviço exporta os três sinais via **OTLP HTTP** para o OTel Collector:
 
 ```
-search-service (:8081)
+search-service (:8110)
   │
   └─ OTLP HTTP (:4318) ──► OTel Collector
                                 ├─ Traces   ──► Grafana Tempo  (:3200)

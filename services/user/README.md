@@ -98,14 +98,14 @@ O evento é publicado pelo `auth-service` ao concluir o `POST /auth/register` co
 
 ## API Reference
 
-A aplicação sobe na porta `8093`. O Actuator fica na porta `8094`.
+A aplicação sobe na porta `8130`. O Actuator fica na porta `8131`.
 
 ### GET /users/me
 
 Retorna o perfil do usuário autenticado. Requer Bearer token (JWT emitido pelo Keycloak). O `keycloakId` é lido do claim `sub` do token.
 
 ```bash
-curl -s http://localhost:8093/users/me \
+curl -s http://localhost:8130/users/me \
   -H "Authorization: Bearer <access_token>" | jq
 ```
 
@@ -143,7 +143,7 @@ Na raiz do repositório:
 docker compose up -d
 ```
 
-O `docker-compose.yml` sobe automaticamente PostgreSQL, Kafka, Keycloak e o stack de observabilidade. Para o user-service os serviços essenciais são PostgreSQL (`:5432`), Kafka (`:9092`) e Keycloak (`:8089`).
+O `docker-compose.yml` sobe automaticamente PostgreSQL, Kafka, Keycloak e o stack de observabilidade. Para o user-service os serviços essenciais são PostgreSQL (`:5432`), Kafka (`:9092`) e Keycloak (`:8084`).
 
 ### 2. Inicie o serviço
 
@@ -156,21 +156,21 @@ O `docker-compose.yml` sobe automaticamente PostgreSQL, Kafka, Keycloak e o stac
 
 | Variável | Default | Descrição |
 |---|---|---|
-| `SERVER_PORT` | `8093` | Porta da API |
-| `MANAGEMENT_PORT` | `8094` | Porta do Actuator |
+| `SERVER_PORT` | `8130` | Porta da API |
+| `MANAGEMENT_PORT` | `8131` | Porta do Actuator |
 | `DB_HOST` | `localhost` | Host do PostgreSQL |
 | `DB_PORT` | `5432` | Porta do PostgreSQL |
 | `DB_NAME` | `user` | Nome do banco |
 | `DB_USERNAME` | `admin` | Usuário do banco |
 | `DB_PASSWORD` | `admin` | Senha do banco |
 | `KAFKA_BROKERS` | `localhost:9092` | Bootstrap servers do Kafka |
-| `KEYCLOAK_ISSUER_URI` | `http://localhost:8089/realms/ecommerce` | Issuer URI para validação de JWT |
+| `KEYCLOAK_ISSUER_URI` | `http://localhost:8084/realms/ecommerce` | Issuer URI para validação de JWT |
 | `OTEL_ENDPOINT` | `http://localhost:4318` | Endpoint do OTel Collector |
 
 ### Actuator
 
 ```bash
-curl http://localhost:8094/actuator/health
+curl http://localhost:8131/actuator/health
 ```
 
 ```json

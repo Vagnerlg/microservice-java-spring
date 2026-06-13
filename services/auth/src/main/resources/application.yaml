@@ -1,5 +1,5 @@
 server:
-  port: ${SERVER_PORT:8084}
+  port: ${SERVER_PORT:8120}
 
 spring:
   application:
@@ -16,7 +16,7 @@ kafka:
     user: user
 
 keycloak:
-  server-url: ${KEYCLOAK_SERVER_URL:http://localhost:8089}
+  server-url: ${KEYCLOAK_SERVER_URL:http://localhost:8084}
   realm: ${KEYCLOAK_REALM:ecommerce}
   client-id: ${KEYCLOAK_CLIENT_ID:auth-service}
   client-secret: ${KEYCLOAK_CLIENT_SECRET:auth-service-secret}
@@ -25,7 +25,7 @@ keycloak:
 
 management:
   server:
-    port: ${MANAGEMENT_PORT:8088}
+    port: ${MANAGEMENT_PORT:8121}
   endpoints:
     web:
       exposure:

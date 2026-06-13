@@ -1,5 +1,5 @@
 server:
-  port: ${SERVER_PORT:8082}
+  port: ${SERVER_PORT:8110}
 
 spring:
   application:
@@ -20,7 +20,7 @@ kafka:
 
 management:
   server:
-    port: ${MANAGEMENT_PORT:8083}
+    port: ${MANAGEMENT_PORT:8111}
   endpoints:
     web:
       exposure:

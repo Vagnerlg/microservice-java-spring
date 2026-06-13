@@ -115,14 +115,14 @@ Qualquer serviço que receba o `access_token` pode verificar se o JTI está na b
 
 ## API Reference
 
-A aplicação sobe na porta `8084`. O Actuator fica na porta `8088`.
+A aplicação sobe na porta `8120`. O Actuator fica na porta `8121`.
 
 ### POST /auth/register
 
 Cadastra um novo usuário no Keycloak e publica o evento `user.CREATED` no Kafka.
 
 ```bash
-curl -s -X POST http://localhost:8084/auth/register \
+curl -s -X POST http://localhost:8120/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "username": "joao",
@@ -149,7 +149,7 @@ curl -s -X POST http://localhost:8084/auth/register \
 Autentica o usuário via ROPC e retorna os tokens Keycloak.
 
 ```bash
-curl -s -X POST http://localhost:8084/auth/login \
+curl -s -X POST http://localhost:8120/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "username": "joao",
@@ -176,7 +176,7 @@ curl -s -X POST http://localhost:8084/auth/login \
 Troca o `refreshToken` por um novo par de tokens.
 
 ```bash
-curl -s -X POST http://localhost:8084/auth/refresh \
+curl -s -X POST http://localhost:8120/auth/refresh \
   -H "Content-Type: application/json" \
   -d '{
     "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
@@ -192,7 +192,7 @@ curl -s -X POST http://localhost:8084/auth/refresh \
 Revoga o refresh token no Keycloak e insere o JTI do access token na blacklist Redis.
 
 ```bash
-curl -s -X POST http://localhost:8084/auth/logout \
+curl -s -X POST http://localhost:8120/auth/logout \
   -H "Content-Type: application/json" \
   -d '{
     "accessToken": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
@@ -264,7 +264,7 @@ Na raiz do repositório:
 docker compose up -d
 ```
 
-O `docker-compose.yml` inclui automaticamente `docker-compose.data.yml` (MongoDB, Kafka, Elasticsearch, Redis, Schema Registry) e `docker-compose.monitoring.yml` (OTel Collector, Grafana, Loki, Prometheus, Tempo). Para o auth-service os serviços essenciais são Keycloak (`:8089`) e Redis (`:6379`).
+O `docker-compose.yml` inclui automaticamente `docker-compose.data.yml` (MongoDB, Kafka, Elasticsearch, Redis, Schema Registry) e `docker-compose.monitoring.yml` (OTel Collector, Grafana, Loki, Prometheus, Tempo). Para o auth-service os serviços essenciais são Keycloak (`:8084`) e Redis (`:6379`).
 
 ### 2. Inicie o serviço
 
@@ -277,12 +277,12 @@ O `docker-compose.yml` inclui automaticamente `docker-compose.data.yml` (MongoDB
 
 | Variável | Default | Descrição |
 |---|---|---|
-| `SERVER_PORT` | `8084` | Porta da API |
-| `MANAGEMENT_PORT` | `8088` | Porta do Actuator |
+| `SERVER_PORT` | `8120` | Porta da API |
+| `MANAGEMENT_PORT` | `8121` | Porta do Actuator |
 | `REDIS_HOST` | `localhost` | Host do Redis |
 | `REDIS_PORT` | `6379` | Porta do Redis |
 | `KAFKA_BROKERS` | `localhost:9092` | Bootstrap servers do Kafka |
-| `KEYCLOAK_SERVER_URL` | `http://localhost:8089` | URL base do Keycloak |
+| `KEYCLOAK_SERVER_URL` | `http://localhost:8084` | URL base do Keycloak |
 | `KEYCLOAK_REALM` | `ecommerce` | Realm dos usuários |
 | `KEYCLOAK_CLIENT_ID` | `auth-service` | Client ID no Keycloak |
 | `KEYCLOAK_CLIENT_SECRET` | `auth-service-secret` | Client secret |
@@ -293,7 +293,7 @@ O `docker-compose.yml` inclui automaticamente `docker-compose.data.yml` (MongoDB
 ### Actuator
 
 ```bash
-curl http://localhost:8088/actuator/health
+curl http://localhost:8121/actuator/health
 ```
 
 ```json

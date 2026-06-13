@@ -1,5 +1,5 @@
 server:
-  port: ${SERVER_PORT:8093}
+  port: ${SERVER_PORT:8130}
 
 spring:
   application:
@@ -23,7 +23,7 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8089/realms/ecommerce}
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8084/realms/ecommerce}
 
 kafka:
   topics:
@@ -31,7 +31,7 @@ kafka:
 
 management:
   server:
-    port: ${MANAGEMENT_PORT:8094}
+    port: ${MANAGEMENT_PORT:8131}
   endpoints:
     web:
       exposure:
