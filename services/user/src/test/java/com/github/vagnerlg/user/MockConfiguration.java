@@ -1,15 +1,23 @@
 package com.github.vagnerlg.user;
 
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+
+import java.time.Instant;
 
 @TestConfiguration(proxyBeanMethods = false)
 public class MockConfiguration {
 
-    // Declare beans mockados aqui com @Bean + Mockito.mock() quando necessário.
-    // Exemplo:
-    // @Bean
-    // SomeService someService() {
-    //     return Mockito.mock(SomeService.class);
-    // }
-
+    @Bean
+    JwtDecoder jwtDecoder() {
+        // Token value is used directly as the sub claim for test flexibility
+        return token -> Jwt.withTokenValue(token)
+                .header("alg", "none")
+                .claim("sub", token)
+                .issuedAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(3600))
+                .build();
+    }
 }

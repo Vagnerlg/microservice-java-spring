@@ -1,10 +1,37 @@
+server:
+  port: ${SERVER_PORT:8093}
+
 spring:
   application:
-    name: main
+    name: user
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:user}
+    username: ${DB_USERNAME:admin}
+    password: ${DB_PASSWORD:admin}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
+    consumer:
+      group-id: user-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8089/realms/ecommerce}
+
+kafka:
+  topics:
+    user: user
 
 management:
   server:
-    port: 8081
+    port: ${MANAGEMENT_PORT:8094}
   endpoints:
     web:
       exposure:
@@ -18,16 +45,16 @@ management:
   otlp:
     metrics:
       export:
-        url: http://localhost:4318/v1/metrics
+        url: ${OTEL_ENDPOINT:http://localhost:4318}/v1/metrics
   opentelemetry:
     tracing:
       export:
         otlp:
-          endpoint: http://localhost:4318/v1/traces
+          endpoint: ${OTEL_ENDPOINT:http://localhost:4318}/v1/traces
     logging:
       export:
         otlp:
-          endpoint: http://localhost:4318/v1/logs
+          endpoint: ${OTEL_ENDPOINT:http://localhost:4318}/v1/logs
   logging:
     export:
       otlp:
