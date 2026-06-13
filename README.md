@@ -3,12 +3,13 @@
 [![product-service CI](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/product-quality.yml/badge.svg)](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/product-quality.yml)
 [![search-service CI](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/search-quality.yml/badge.svg)](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/search-quality.yml)
 [![auth-service CI](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/auth-quality.yml/badge.svg)](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/auth-quality.yml)
+[![user-service CI](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/user-quality.yml/badge.svg)](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/user-quality.yml)
 ![Java](https://img.shields.io/badge/Java-21-orange?logo=openjdk)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0-brightgreen?logo=springboot)
 
 Plataforma de e-commerce construída com **Java 21 + Spring Boot 4**, organizada em microserviços independentes. Cada serviço possui seu próprio banco de dados e se comunica via **Apache Kafka**.
 
-O projeto está em construção progressiva — `product-service`, `search-service` e `auth-service` já estão implementados. Os demais serão adicionados gradualmente.
+O projeto está em construção progressiva — `product-service`, `search-service`, `auth-service` e `user-service` já estão implementados. Os demais serão adicionados gradualmente.
 
 ---
 
@@ -34,7 +35,7 @@ O projeto está em construção progressiva — `product-service`, `search-servi
 | [`product-service`](services/product/) | ✅ Implementado | MongoDB | Catálogo de produtos |
 | [`search-service`](services/search/) | ✅ Implementado | Elasticsearch | Busca — modelo CQRS read |
 | [`auth-service`](services/auth/) | ✅ Implementado | — (Keycloak + Redis) | OAuth2/JWT, blacklist de tokens |
-| `user-service` | 📋 Planejado | PostgreSQL | Perfis de usuário |
+| [`user-service`](services/user/) | ✅ Implementado | PostgreSQL | Perfis de usuário |
 | `order-service` | 📋 Planejado | PostgreSQL | Pedidos, Saga, Outbox + Debezium |
 | `inventory-service` | 📋 Planejado | PostgreSQL + Redis | Controle de estoque |
 | `cart-service` | 📋 Planejado | Redis | Carrinho de compras |
@@ -82,6 +83,21 @@ Serviço de autenticação da plataforma. Delega identidade e sessões ao Keyclo
 - **Testcontainers** nos testes de integração com Keycloak, Redis e Kafka reais
 
 Consulte o [README do auth-service](services/auth/README.md) para detalhes da API, integração Keycloak e variáveis de ambiente.
+
+---
+
+## user-service
+
+Serviço de perfis de usuário da plataforma. Não gerencia autenticação — delega isso ao `auth-service`.
+
+- **DDD com hexagonal** — porta `UserRepository` no domínio, adaptada por `UserPersistenceAdapter` na infraestrutura
+- **Kafka consumer** — consome `user.CREATED` do tópico `user` publicado pelo `auth-service` a cada novo cadastro
+- **PostgreSQL** como store de perfis — schema gerenciado por Flyway (`V1__create_users.sql`)
+- **`GET /users/me`** — único endpoint REST; requer JWT do Keycloak, lê `keycloakId` do claim `sub`
+- **Idempotente** — eventos duplicados com o mesmo `keycloakId` são descartados silenciosamente
+- **Testcontainers** nos testes de integração com PostgreSQL e Kafka reais
+
+Consulte o [README do user-service](services/user/README.md) para detalhes da API, variáveis de ambiente e como rodar localmente.
 
 ---
 
