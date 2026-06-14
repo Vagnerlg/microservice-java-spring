@@ -4,12 +4,6 @@ include:
 
 services:
 
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    command: redis-server --save "" --appendonly no
-
   keycloak:
     image: quay.io/keycloak/keycloak:26.2
     command: start-dev --import-realm
@@ -20,3 +14,91 @@ services:
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
     volumes:
       - ./config/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json
+
+  product:
+    image: maven:3.9-eclipse-temurin-21
+    working_dir: /app
+    volumes:
+      - ./services/product:/app
+      - ${HOME}/.m2:/root/.m2
+    ports:
+      - "8101:8101"
+      - "8102:8102"
+      - "5005:5005"
+    environment:
+      MONGO_HOST: mongodb
+      KAFKA_BROKERS: kafka:29092
+    command:
+      - ./mvnw
+      - spring-boot:run
+      - "-Dspring-boot.run.jvmArguments=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
+    depends_on:
+      - mongodb
+      - kafka
+
+  auth:
+    image: maven:3.9-eclipse-temurin-21
+    working_dir: /app
+    volumes:
+      - ./services/auth:/app
+      - ${HOME}/.m2:/root/.m2
+    ports:
+      - "8120:8120"
+      - "8121:8121"
+      - "5006:5006"
+    environment:
+      REDIS_HOST: redis
+      KAFKA_BROKERS: kafka:29092
+      KEYCLOAK_SERVER_URL: http://keycloak:8080
+    command:
+      - ./mvnw
+      - spring-boot:run
+      - "-Dspring-boot.run.jvmArguments=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5006"
+    depends_on:
+      - redis
+      - kafka
+      - keycloak
+
+  search:
+    image: maven:3.9-eclipse-temurin-21
+    working_dir: /app
+    volumes:
+      - ./services/search:/app
+      - ${HOME}/.m2:/root/.m2
+    ports:
+      - "8110:8110"
+      - "8111:8111"
+      - "5007:5007"
+    environment:
+      ELASTICSEARCH_URI: http://elasticsearch:9200
+      KAFKA_BROKERS: kafka:29092
+    command:
+      - ./mvnw
+      - spring-boot:run
+      - "-Dspring-boot.run.jvmArguments=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5007"
+    depends_on:
+      - elasticsearch
+      - kafka
+
+  user:
+    image: maven:3.9-eclipse-temurin-21
+    working_dir: /app
+    volumes:
+      - ./services/user:/app
+      - ${HOME}/.m2:/root/.m2
+    ports:
+      - "8130:8130"
+      - "8131:8131"
+      - "5008:5008"
+    environment:
+      DB_HOST: postgres
+      KAFKA_BROKERS: kafka:29092
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/ecommerce
+    command:
+      - ./mvnw
+      - spring-boot:run
+      - "-Dspring-boot.run.jvmArguments=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5008"
+    depends_on:
+      - postgres
+      - kafka
+      - keycloak
