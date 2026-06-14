@@ -150,7 +150,9 @@ class ProductControllerIT {
 
         try (var consumer = new KafkaConsumer<String, String>(props)) {
             consumer.subscribe(List.of("product"));
-            consumer.poll(Duration.ofMillis(500));
+            while (consumer.assignment().isEmpty()) {
+                consumer.poll(Duration.ofMillis(100));
+            }
 
             var body = """
                     {"name":"Kafka Event Product","description":"desc","price":50.00,"category":"Test"}
