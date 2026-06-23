@@ -4,12 +4,13 @@
 [![search-service CI](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/search-quality.yml/badge.svg)](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/search-quality.yml)
 [![auth-service CI](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/auth-quality.yml/badge.svg)](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/auth-quality.yml)
 [![user-service CI](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/user-quality.yml/badge.svg)](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/user-quality.yml)
+[![cart-service CI](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/cart-quality.yml/badge.svg)](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/cart-quality.yml)
 ![Java](https://img.shields.io/badge/Java-21-orange?logo=openjdk)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0-brightgreen?logo=springboot)
 
 Plataforma de e-commerce construída com **Java 21 + Spring Boot 4**, organizada em microserviços independentes. Cada serviço possui seu próprio banco de dados e se comunica via **Apache Kafka**.
 
-O projeto está em construção progressiva — `product-service`, `search-service`, `auth-service` e `user-service` já estão implementados. Os demais serão adicionados gradualmente.
+O projeto está em construção progressiva — `product-service`, `search-service`, `auth-service`, `user-service` e `cart-service` já estão implementados. Os demais serão adicionados gradualmente.
 
 ---
 
@@ -36,9 +37,9 @@ O projeto está em construção progressiva — `product-service`, `search-servi
 | [`search-service`](services/search/) | ✅ Implementado | Elasticsearch | Busca — modelo CQRS read |
 | [`auth-service`](services/auth/) | ✅ Implementado | — (Keycloak + Redis) | OAuth2/JWT, blacklist de tokens |
 | [`user-service`](services/user/) | ✅ Implementado | PostgreSQL | Perfis de usuário |
+| [`cart-service`](services/cart/) | ✅ Implementado | Redis | Carrinho de compras |
 | `order-service` | 📋 Planejado | PostgreSQL | Pedidos, Saga, Outbox + Debezium |
 | `inventory-service` | 📋 Planejado | PostgreSQL + Redis | Controle de estoque |
-| `cart-service` | 📋 Planejado | Redis | Carrinho de compras |
 | `notification-service` | 📋 Planejado | — | Consumidor Kafka, sem HTTP |
 | `report-service` | 📋 Planejado | MongoDB | Relatórios e analytics |
 
@@ -98,6 +99,21 @@ Serviço de perfis de usuário da plataforma. Não gerencia autenticação — d
 - **Testcontainers** nos testes de integração com PostgreSQL e Kafka reais
 
 Consulte o [README do user-service](services/user/README.md) para detalhes da API, variáveis de ambiente e como rodar localmente.
+
+---
+
+## cart-service
+
+Microserviço de carrinho de compras da plataforma. Armazena o carrinho de cada usuário no Redis e coordena o início do fluxo de pedidos via Kafka.
+
+- **DDD** — portas `CartRepository` e `CartEventPublisher` isolam o domínio do Redis e do Kafka
+- **Redis** como storage — chave `cart:{userId}` com TTL de 7 dias; upsert de item soma quantidade ao existente
+- **JWT obrigatório** — resource server OAuth2; `userId` extraído do claim `sub` do token Keycloak
+- **6 endpoints REST** — get, add item, update item, remove item, clear e checkout
+- **`POST /carts/checkout`** publica `cart.CHECKOUT` no tópico `cart` e apaga o carrinho atomicamente
+- **Testcontainers** nos testes de integração com Redis e Kafka reais
+
+Consulte o [README do cart-service](services/cart/README.md) para detalhes da API, contrato do evento e como rodar localmente.
 
 ---
 

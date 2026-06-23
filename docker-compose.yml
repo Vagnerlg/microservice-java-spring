@@ -80,6 +80,29 @@ services:
       - elasticsearch
       - kafka
 
+  cart:
+    image: maven:3.9-eclipse-temurin-21
+    working_dir: /app
+    volumes:
+      - ./services/cart:/app
+      - ${HOME}/.m2:/root/.m2
+    ports:
+      - "8140:8140"
+      - "8141:8141"
+      - "5009:5009"
+    environment:
+      REDIS_HOST: redis
+      KAFKA_BROKERS: kafka:29092
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/ecommerce
+    command:
+      - ./mvnw
+      - spring-boot:run
+      - "-Dspring-boot.run.jvmArguments=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5009"
+    depends_on:
+      - redis
+      - kafka
+      - keycloak
+
   user:
     image: maven:3.9-eclipse-temurin-21
     working_dir: /app
