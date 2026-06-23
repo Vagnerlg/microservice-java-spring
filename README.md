@@ -5,12 +5,13 @@
 [![auth-service CI](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/auth-quality.yml/badge.svg)](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/auth-quality.yml)
 [![user-service CI](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/user-quality.yml/badge.svg)](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/user-quality.yml)
 [![cart-service CI](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/cart-quality.yml/badge.svg)](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/cart-quality.yml)
+[![order-service CI](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/order-quality.yml/badge.svg)](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/order-quality.yml)
 ![Java](https://img.shields.io/badge/Java-21-orange?logo=openjdk)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0-brightgreen?logo=springboot)
 
 Plataforma de e-commerce construída com **Java 21 + Spring Boot 4**, organizada em microserviços independentes. Cada serviço possui seu próprio banco de dados e se comunica via **Apache Kafka**.
 
-O projeto está em construção progressiva — `product-service`, `search-service`, `auth-service`, `user-service` e `cart-service` já estão implementados. Os demais serão adicionados gradualmente.
+O projeto está em construção progressiva — `product-service`, `search-service`, `auth-service`, `user-service`, `cart-service` e `order-service` já estão implementados. Os demais serão adicionados gradualmente.
 
 ---
 
@@ -38,7 +39,7 @@ O projeto está em construção progressiva — `product-service`, `search-servi
 | [`auth-service`](services/auth/) | ✅ Implementado | — (Keycloak + Redis) | OAuth2/JWT, blacklist de tokens |
 | [`user-service`](services/user/) | ✅ Implementado | PostgreSQL | Perfis de usuário |
 | [`cart-service`](services/cart/) | ✅ Implementado | Redis | Carrinho de compras |
-| `order-service` | 📋 Planejado | PostgreSQL | Pedidos, Saga, Outbox + Debezium |
+| [`order-service`](services/order/) | ✅ Implementado | PostgreSQL | Pedidos, Saga coreografada |
 | `inventory-service` | 📋 Planejado | PostgreSQL + Redis | Controle de estoque |
 | `notification-service` | 📋 Planejado | — | Consumidor Kafka, sem HTTP |
 | `report-service` | 📋 Planejado | MongoDB | Relatórios e analytics |
@@ -114,6 +115,21 @@ Microserviço de carrinho de compras da plataforma. Armazena o carrinho de cada 
 - **Testcontainers** nos testes de integração com Redis e Kafka reais
 
 Consulte o [README do cart-service](services/cart/README.md) para detalhes da API, contrato do evento e como rodar localmente.
+
+---
+
+## order-service
+
+Serviço de pedidos da plataforma. Orquestra o ciclo de vida do pedido desde o checkout até a confirmação de estoque.
+
+- **DDD com hexagonal** — portas `OrderRepository` e `OrderEventPublisher` isolam o domínio do PostgreSQL e do Kafka
+- **Kafka consumer** — consome `cart.CHECKOUT` para criar pedidos e `stock-reservation.RESERVED/UNAVAILABLE` para avançar o status via Saga
+- **PostgreSQL** como store transacional — schema gerenciado por Flyway (`V1__create_orders.sql`, `V2__create_order_items.sql`)
+- **Saga coreografada** — `PENDING → CONFIRMED` ao receber `stock.RESERVED`; `PENDING → CANCELLED` ao receber `stock.UNAVAILABLE` ou por ação do usuário
+- **3 endpoints REST** — listagem paginada, consulta por ID e cancelamento pelo usuário (todos exigem JWT)
+- **Testcontainers** nos testes de integração com PostgreSQL e Kafka reais
+
+Consulte o [README do order-service](services/order/README.md) para detalhes da API, fluxo da Saga e como rodar localmente.
 
 ---
 

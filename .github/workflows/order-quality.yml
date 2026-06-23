@@ -1,0 +1,16 @@
+name: Quality (order service)
+
+on:
+  push:
+    paths:
+      - 'services/order/**'
+  pull_request:
+    paths:
+      - 'services/order/**'
+
+jobs:
+  quality:
+    uses: ./.github/workflows/quality-reusable.yml
+    with:
+      service-path: services/order
+      service-name: order
