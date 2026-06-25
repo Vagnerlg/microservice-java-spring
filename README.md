@@ -218,3 +218,60 @@ Todos os eventos seguem o padrão **topic per aggregate** com envelope fixo:
 | `cart` | `CHECKOUT` |
 | `stock-reservation` | `RESERVED` · `UNAVAILABLE` · `RELEASED` |
 | `stock-level` | `LOW` |
+
+---
+
+## Roadmap
+
+Próximas etapas planejadas para completar a plataforma como portfolio.
+
+### Fase 1 — Lacunas funcionais
+
+Fechar gaps nos serviços já implementados:
+
+| Item | Serviço | O que fazer |
+|---|---|---|
+| JWT em `product-service` | `product` | `GET /products/{id}` público · `POST`, `PUT`, `DELETE` exigem role `ADMIN` |
+| `product.UPDATED` / `DELETED` | `product` | Endpoints `PUT /products/{id}` (todos os campos) + `DELETE` hard delete + publicar eventos |
+| `stock-level.LOW` | `inventory` | Publicar evento quando `availableQuantity <= STOCK_LOW_THRESHOLD` (env var) |
+
+### Fase 2 — Docker-compose completo + Traefik
+
+Implementar o plano detalhado em [`docs/traefik-routing-plan.md`](docs/traefik-routing-plan.md) e adicionar os serviços faltantes:
+
+| Serviço | Acesso externo | Observação |
+|---|---|---|
+| `order` | Traefik `/api/order` | — |
+| `cart` | Traefik `/api/cart` | — |
+| `inventory` | Actuator via porta direta | Sem HTTP de negócio |
+| `notification` | Actuator via porta direta | Sem HTTP de negócio |
+
+### Fase 3 — Validar observabilidade
+
+Confirmar que os três sinais chegam corretamente ao Grafana após subir toda a stack:
+
+- **Logs** — Loki: mensagens com `traceId` e `spanId` correlacionados
+- **Traces** — Tempo: spans do Spring + MongoDB/Elasticsearch/Kafka visíveis
+- **Métricas** — Prometheus: JVM, pool de threads, consumer lag
+
+### Fase 4 — Script de demo interativo
+
+Script `bash` + `curl` + `jq` para guiar qualquer pessoa que clonou o repo pelo fluxo completo da plataforma:
+
+```
+1. Login admin (pré-configurado) → criar produto
+   ↳ poll até search-service indexar (retry 1s, max 15s)
+2. Registrar usuário → login → obter JWT
+3. Adicionar produto ao carrinho → checkout
+   ↳ poll até order.status = CONFIRMED
+4. Consultar pedido confirmado
+5. "Explore:" → links Grafana · Kafka UI · GET /products/search
+```
+
+### Débitos técnicos (sem prazo definido)
+
+| Item | Descrição |
+|---|---|
+| Outbox Pattern + Debezium | `order-service` e `inventory-service` publicam diretamente no Kafka — risco de janela de inconsistência |
+| Dead Letter Topic / retry | Consumers descartam eventos com falha silenciosamente — sem reprocessamento |
+| `libs/` compartilhadas | `security-lib`, `kafka-events-lib` (Avro) e `common-lib` não existem — cada serviço reimplementa padrões próprios |
