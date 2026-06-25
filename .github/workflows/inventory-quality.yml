@@ -1,0 +1,16 @@
+name: Quality (inventory service)
+
+on:
+  push:
+    paths:
+      - 'services/inventory/**'
+  pull_request:
+    paths:
+      - 'services/inventory/**'
+
+jobs:
+  quality:
+    uses: ./.github/workflows/quality-reusable.yml
+    with:
+      service-path: services/inventory
+      service-name: inventory

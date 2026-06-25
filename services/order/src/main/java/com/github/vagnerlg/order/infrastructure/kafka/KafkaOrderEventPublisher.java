@@ -31,8 +31,11 @@ class KafkaOrderEventPublisher implements OrderEventPublisher {
     }
 
     private void send(String event, Order order) {
+        var items = order.items().stream()
+                .map(i -> new OrderEventMessage.OrderItemData(i.productId(), i.quantity()))
+                .toList();
         var data = new OrderEventMessage.OrderData(
-                order.id().toString(), order.userId(), order.totalPrice(), order.createdAt());
+                order.id().toString(), order.userId(), order.totalPrice(), order.createdAt(), items);
         var message = new OrderEventMessage(event, data);
         try {
             kafkaTemplate.send(topic, order.id().toString(), message).get();
