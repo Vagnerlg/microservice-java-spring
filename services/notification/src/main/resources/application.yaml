@@ -1,0 +1,61 @@
+server:
+  port: ${SERVER_PORT:8170}
+
+spring:
+  application:
+    name: notification
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
+    consumer:
+      group-id: notification-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+kafka:
+  topics:
+    order: order
+    user: user
+    stock-level: stock-level
+
+management:
+  server:
+    port: ${MANAGEMENT_PORT:8171}
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics
+  endpoint:
+    health:
+      show-details: always
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
+    metrics:
+      export:
+        url: ${OTEL_ENDPOINT:http://localhost:4318}/v1/metrics
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: ${OTEL_ENDPOINT:http://localhost:4318}/v1/traces
+    logging:
+      export:
+        otlp:
+          endpoint: ${OTEL_ENDPOINT:http://localhost:4318}/v1/logs
+  logging:
+    export:
+      otlp:
+        enabled: true
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+logging:
+  structured:
+    format:
+      console: ecs

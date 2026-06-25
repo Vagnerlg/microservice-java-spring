@@ -146,7 +146,7 @@ Ao criar um produto com sucesso, o serviço publica um evento no tópico `produc
 
 A chave da mensagem é o `id` do produto (String). Não há headers de tipo — o campo `event` identifica o tipo do evento.
 
-**Consumidores esperados:** `inventory-service` (reserva de estoque), `search-service` (índice de busca), `report-service` (analytics).
+**Consumidores esperados:** `inventory-service` (reserva de estoque), `search-service` (índice de busca).
 
 ---
 

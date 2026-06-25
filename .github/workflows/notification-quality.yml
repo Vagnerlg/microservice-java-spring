@@ -1,0 +1,16 @@
+name: Quality (notification service)
+
+on:
+  push:
+    paths:
+      - 'services/notification/**'
+  pull_request:
+    paths:
+      - 'services/notification/**'
+
+jobs:
+  quality:
+    uses: ./.github/workflows/quality-reusable.yml
+    with:
+      service-path: services/notification
+      service-name: notification

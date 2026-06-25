@@ -7,12 +7,13 @@
 [![cart-service CI](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/cart-quality.yml/badge.svg)](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/cart-quality.yml)
 [![order-service CI](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/order-quality.yml/badge.svg)](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/order-quality.yml)
 [![inventory-service CI](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/inventory-quality.yml/badge.svg)](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/inventory-quality.yml)
+[![notification-service CI](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/notification-quality.yml/badge.svg)](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/notification-quality.yml)
 ![Java](https://img.shields.io/badge/Java-21-orange?logo=openjdk)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0-brightgreen?logo=springboot)
 
 Plataforma de e-commerce construída com **Java 21 + Spring Boot 4**, organizada em microserviços independentes. Cada serviço possui seu próprio banco de dados e se comunica via **Apache Kafka**.
 
-O projeto está em construção progressiva — `product-service`, `search-service`, `auth-service`, `user-service`, `cart-service`, `order-service` e `inventory-service` já estão implementados. Os demais serão adicionados gradualmente.
+O projeto está em construção progressiva — `product-service`, `search-service`, `auth-service`, `user-service`, `cart-service`, `order-service`, `inventory-service` e `notification-service` já estão implementados.
 
 ---
 
@@ -42,8 +43,7 @@ O projeto está em construção progressiva — `product-service`, `search-servi
 | [`cart-service`](services/cart/) | ✅ Implementado | Redis | Carrinho de compras |
 | [`order-service`](services/order/) | ✅ Implementado | PostgreSQL | Pedidos, Saga coreografada |
 | [`inventory-service`](services/inventory/) | ✅ Implementado | PostgreSQL | Controle de estoque, Saga coreografada |
-| `notification-service` | 📋 Planejado | — | Consumidor Kafka, sem HTTP |
-| `report-service` | 📋 Planejado | MongoDB | Relatórios e analytics |
+| [`notification-service`](services/notification/) | ✅ Implementado | — | Consumidor Kafka puro, sem HTTP |
 
 ---
 
@@ -146,6 +146,21 @@ Serviço de controle de estoque da plataforma. Participa da Saga coreografada co
 - **Testcontainers** nos testes de integração com PostgreSQL e Kafka reais
 
 Consulte o [README do inventory-service](services/inventory/README.md) para detalhes dos eventos, fluxo da Saga e como rodar localmente.
+
+---
+
+## notification-service
+
+Serviço de notificações da plataforma. **Consumidor Kafka puro** — sem banco de dados, sem API REST.
+
+- **Flat architecture** — sem camadas de domínio; apenas consumers Kafka e configuração
+- **Kafka consumer** — consome 4 tipos de eventos: `order.CREATED`, `order.CANCELLED`, `user.CREATED` e `stock-level.LOW`
+- **Log-only** — cada evento gera um log estruturado (`INFO` ou `WARN`) correlacionado ao traceId do OpenTelemetry
+- **Sem banco de dados** — é um sink de eventos; o processamento é stateless
+- **Resiliente a falhas de desserialização** — erros são logados e o offset avança sem propagar exceções
+- **Testcontainers** nos testes de integração com Kafka real
+
+Consulte o [README do notification-service](services/notification/README.md) para detalhes dos eventos consumidos e variáveis de ambiente.
 
 ---
 
