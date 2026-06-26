@@ -4,6 +4,8 @@ import com.github.vagnerlg.product.domain.Product;
 import com.github.vagnerlg.product.domain.ProductEventPublisher;
 import com.github.vagnerlg.product.domain.ProductRepository;
 import com.github.vagnerlg.product.domain.event.ProductCreatedEvent;
+import com.github.vagnerlg.product.domain.event.ProductDeletedEvent;
+import com.github.vagnerlg.product.domain.event.ProductUpdatedEvent;
 import com.github.vagnerlg.product.domain.exception.ProductAlreadyExistsException;
 import com.github.vagnerlg.product.domain.exception.ProductEventPublishException;
 import com.github.vagnerlg.product.domain.exception.ProductNotFoundException;
@@ -49,5 +51,46 @@ public class ProductService {
     public Product findById(String id) {
         return productRepository.findById(id)
                 .orElseThrow(() -> new ProductNotFoundException(id));
+    }
+
+    public Product update(UpdateProduct cmd) {
+        var existing = productRepository.findById(cmd.id())
+                .orElseThrow(() -> new ProductNotFoundException(cmd.id()));
+        if (!existing.name().equals(cmd.name()) && productRepository.existsByName(cmd.name())) {
+            throw new ProductAlreadyExistsException(cmd.name());
+        }
+        var updated = new Product(
+                existing.id(),
+                cmd.name(),
+                cmd.description(),
+                cmd.price(),
+                cmd.category(),
+                existing.createdAt(),
+                Instant.now()
+        );
+        var saved = productRepository.save(updated);
+        try {
+            eventPublisher.publish(new ProductUpdatedEvent(saved));
+        } catch (ProductEventPublishException e) {
+            try {
+                productRepository.save(existing);
+            } catch (Exception restoreEx) {
+                log.error("Failed to restore product id={} after Kafka publish failure — manual reconciliation required", saved.id(), restoreEx);
+            }
+            throw e;
+        }
+        return saved;
+    }
+
+    public void delete(String id) {
+        var product = productRepository.findById(id)
+                .orElseThrow(() -> new ProductNotFoundException(id));
+        productRepository.deleteById(id);
+        try {
+            eventPublisher.publish(new ProductDeletedEvent(product));
+        } catch (ProductEventPublishException e) {
+            log.error("Failed to publish DELETED event for product id={} — search-service may still index it", id, e);
+            throw e;
+        }
     }
 }

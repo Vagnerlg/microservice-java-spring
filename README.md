@@ -231,8 +231,6 @@ Fechar gaps nos serviços já implementados:
 
 | Item | Serviço | O que fazer |
 |---|---|---|
-| JWT em `product-service` | `product` | `GET /products/{id}` público · `POST`, `PUT`, `DELETE` exigem role `ADMIN` |
-| `product.UPDATED` / `DELETED` | `product` | Endpoints `PUT /products/{id}` (todos os campos) + `DELETE` hard delete + publicar eventos |
 | `stock-level.LOW` | `inventory` | Publicar evento quando `availableQuantity <= STOCK_LOW_THRESHOLD` (env var) |
 
 ### Fase 2 — Docker-compose completo + Traefik
