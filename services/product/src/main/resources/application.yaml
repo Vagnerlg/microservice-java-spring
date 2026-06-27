@@ -18,6 +18,8 @@ spring:
     authentication-database: ${MONGO_AUTH_DATABASE:admin}
   kafka:
     bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
+    template:
+      observation-enabled: true
     producer:
       acks: all
       key-serializer: org.apache.kafka.common.serialization.StringSerializer

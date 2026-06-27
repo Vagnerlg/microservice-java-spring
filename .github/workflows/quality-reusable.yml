@@ -30,6 +30,12 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
+      - name: Build shared libs
+        run: |
+          for lib in $GITHUB_WORKSPACE/libs/*/; do
+            [ -f "$lib/pom.xml" ] && mvn -f "$lib/pom.xml" install -q -DskipTests
+          done
+
       - name: Run tests + static analysis + coverage check
         run: ./mvnw verify --batch-mode --no-transfer-progress
 
