@@ -33,6 +33,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.keycloak.rule=PathPrefix(`/keycloak`)"
       - "traefik.http.services.keycloak.loadbalancer.server.port=8080"
+      - "traefik.http.middlewares.strip-api.stripprefix.prefixes=/api"
 
 networks:
   platform-net:

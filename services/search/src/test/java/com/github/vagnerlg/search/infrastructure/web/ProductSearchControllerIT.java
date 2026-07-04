@@ -52,7 +52,7 @@ class ProductSearchControllerIT {
     @Test
     void shouldReturnProductsMatchingQuery() {
         var response = restClient.get()
-                .uri("/products/search?q=teclado")
+                .uri("/search?q=teclado")
                 .retrieve()
                 .toEntity(Map.class);
 
@@ -68,7 +68,7 @@ class ProductSearchControllerIT {
     @Test
     void shouldFilterByCategory() {
         var response = restClient.get()
-                .uri(u -> u.path("/products/search").queryParam("q", "gamer").queryParam("category", "Peripherals").build())
+                .uri(u -> u.path("/search").queryParam("q", "gamer").queryParam("category", "Peripherals").build())
                 .retrieve()
                 .toEntity(Map.class);
 
@@ -84,7 +84,7 @@ class ProductSearchControllerIT {
     @Test
     void shouldReturnEmptyWhenNoMatch() {
         var response = restClient.get()
-                .uri("/products/search?q=cadeira")
+                .uri("/search?q=cadeira")
                 .retrieve()
                 .toEntity(Map.class);
 
@@ -97,7 +97,7 @@ class ProductSearchControllerIT {
     @Test
     void shouldSearchInDescription() {
         var response = restClient.get()
-                .uri("/products/search?q=Cherry")
+                .uri("/search?q=Cherry")
                 .retrieve()
                 .toEntity(Map.class);
 

@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/products")
+@RequestMapping("/search")
 class ProductSearchController {
 
     private final ProductSearchService service;
@@ -18,7 +18,7 @@ class ProductSearchController {
         this.service = service;
     }
 
-    @GetMapping("/search")
+    @GetMapping
     Page<ProductSearchResponse> search(
             @RequestParam String q,
             @RequestParam(required = false) String category,

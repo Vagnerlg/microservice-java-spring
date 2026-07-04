@@ -37,9 +37,8 @@ services:
       - "-Dspring-boot.run.jvmArguments=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.product.rule=PathPrefix(`/api/product`)"
-      - "traefik.http.routers.product.middlewares=strip-product"
-      - "traefik.http.middlewares.strip-product.stripprefix.prefixes=/api/product"
+      - "traefik.http.routers.product.rule=PathPrefix(`/api/products`)"
+      - "traefik.http.routers.product.middlewares=strip-api@docker"
       - "traefik.http.services.product.loadbalancer.server.port=8101"
     depends_on:
       - mongodb
@@ -68,8 +67,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.auth.rule=PathPrefix(`/api/auth`)"
-      - "traefik.http.routers.auth.middlewares=strip-auth"
-      - "traefik.http.middlewares.strip-auth.stripprefix.prefixes=/api/auth"
+      - "traefik.http.routers.auth.middlewares=strip-api@docker"
       - "traefik.http.services.auth.loadbalancer.server.port=8120"
     depends_on:
       - redis
@@ -98,8 +96,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.search.rule=PathPrefix(`/api/search`)"
-      - "traefik.http.routers.search.middlewares=strip-search"
-      - "traefik.http.middlewares.strip-search.stripprefix.prefixes=/api/search"
+      - "traefik.http.routers.search.middlewares=strip-api@docker"
       - "traefik.http.services.search.loadbalancer.server.port=8110"
     depends_on:
       - elasticsearch
@@ -127,9 +124,8 @@ services:
       - "-Dspring-boot.run.jvmArguments=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5009"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.cart.rule=PathPrefix(`/api/cart`)"
-      - "traefik.http.routers.cart.middlewares=strip-cart"
-      - "traefik.http.middlewares.strip-cart.stripprefix.prefixes=/api/cart"
+      - "traefik.http.routers.cart.rule=PathPrefix(`/api/carts`)"
+      - "traefik.http.routers.cart.middlewares=strip-api@docker"
       - "traefik.http.services.cart.loadbalancer.server.port=8140"
     depends_on:
       - redis
@@ -158,9 +154,8 @@ services:
       - "-Dspring-boot.run.jvmArguments=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5008"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.user.rule=PathPrefix(`/api/user`)"
-      - "traefik.http.routers.user.middlewares=strip-user"
-      - "traefik.http.middlewares.strip-user.stripprefix.prefixes=/api/user"
+      - "traefik.http.routers.user.rule=PathPrefix(`/api/users`)"
+      - "traefik.http.routers.user.middlewares=strip-api@docker"
       - "traefik.http.services.user.loadbalancer.server.port=8130"
     depends_on:
       - postgres
@@ -189,9 +184,8 @@ services:
       - "-Dspring-boot.run.jvmArguments=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5010"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.order.rule=PathPrefix(`/api/order`)"
-      - "traefik.http.routers.order.middlewares=strip-order"
-      - "traefik.http.middlewares.strip-order.stripprefix.prefixes=/api/order"
+      - "traefik.http.routers.order.rule=PathPrefix(`/api/orders`)"
+      - "traefik.http.routers.order.middlewares=strip-api@docker"
       - "traefik.http.services.order.loadbalancer.server.port=8150"
     depends_on:
       - postgres
@@ -217,12 +211,6 @@ services:
       - ./mvnw
       - spring-boot:run
       - "-Dspring-boot.run.jvmArguments=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5011"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.inventory.rule=PathPrefix(`/api/inventory`)"
-      - "traefik.http.routers.inventory.middlewares=strip-inventory"
-      - "traefik.http.middlewares.strip-inventory.stripprefix.prefixes=/api/inventory"
-      - "traefik.http.services.inventory.loadbalancer.server.port=8160"
     depends_on:
       - postgres
       - kafka
