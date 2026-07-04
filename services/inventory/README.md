@@ -60,7 +60,7 @@ Stock { id, productId, totalQuantity, reservedQuantity }
 availableQuantity = totalQuantity - reservedQuantity
 ```
 
-Estoque é inicializado com **10 unidades** ao receber `product.CREATED`. Ajustes manuais de quantidade serão suportados via API REST em uma fase futura.
+Estoque é inicializado com **10 unidades** ao receber `product.CREATED`.
 
 ---
 
@@ -91,10 +91,6 @@ stock-reservation.RESERVED      │
 ```
 
 Quando um pedido é cancelado (`order.CANCELLED`), o inventory libera o `reservedQuantity` correspondente.
-
-> **Tech debt:** Os eventos `stock-reservation.RESERVED` e `stock-reservation.UNAVAILABLE` são publicados diretamente no Kafka dentro da `@Transactional` (sem Outbox + Debezium). O Outbox Pattern será adicionado em uma fase futura para garantir entrega atômica.
-
-> **Tech debt:** O evento `stock-level.LOW` (alerta de estoque baixo para o `notification-service`) não está implementado nesta fase.
 
 ---
 

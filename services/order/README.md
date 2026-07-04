@@ -99,8 +99,6 @@ stock.RESERVED    stock.UNAVAILABLE
                    restaura carrinho
 ```
 
-> **Tech debt:** Os eventos `order.CREATED` e `order.CANCELLED` são publicados diretamente no Kafka fora da transação (sem Outbox + Debezium). O Outbox Pattern será adicionado quando o `inventory-service` for implementado.
-
 ---
 
 ## Eventos Kafka

@@ -150,38 +150,36 @@ A chave da mensagem é o `id` do produto (String). Não há headers de tipo — 
 
 ---
 
-## Rodando localmente
+## Como rodar localmente
 
 **Pré-requisitos:** Java 21 e Docker.
 
-**1. Suba o MongoDB:**
+### 1. Suba a infraestrutura
+
+Na raiz do repositório:
 
 ```bash
-docker run -d --name mongo -p 27017:27017 mongo:8
+docker compose up -d
 ```
 
-**2. Suba o Kafka:**
+Para o product-service os serviços essenciais são MongoDB (`:27017`) e Kafka (`:9092`).
+
+### 2. Inicie o serviço
 
 ```bash
-docker run -d --name kafka -p 9092:9092 \
-  -e KAFKA_NODE_ID=1 \
-  -e KAFKA_PROCESS_ROLES=broker,controller \
-  -e KAFKA_CONTROLLER_QUORUM_VOTERS=1@localhost:9093 \
-  -e KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT \
-  -e KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093 \
-  -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092 \
-  -e KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER \
-  -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 \
-  confluentinc/cp-kafka:7.6.1
-```
-
-**3. Inicie a aplicação:**
-
-```bash
+# A partir de services/product/
 ./mvnw spring-boot:run
 ```
 
-Actuator disponível em `http://localhost:8102/actuator/health`.
+### Actuator
+
+```bash
+curl http://localhost:8102/actuator/health
+```
+
+```json
+{ "status": "UP" }
+```
 
 ---
 

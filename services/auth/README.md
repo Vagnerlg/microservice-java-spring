@@ -20,7 +20,7 @@ Serviço de autenticação da plataforma de e-commerce. Delega identidade e toke
 - [Evento Kafka](#evento-kafka)
 - [Como rodar localmente](#como-rodar-localmente)
 - [Testes e qualidade](#testes-e-qualidade)
-- [Limitações e próximos passos](#limitações-e-próximos-passos)
+- [Decisão de segurança](#decisão-de-segurança)
 - [CI](#ci)
 
 ---
@@ -78,7 +78,7 @@ auth-service
   └─► Kafka topic: user → evento CREATED
 ```
 
-O token de admin é obtido via ROPC no realm `master` com `admin-cli`. A etapa de limpeza de `requiredActions` é necessária em Keycloak 26.x, que adiciona `VERIFY_PROFILE` dinamicamente — ver [nota técnica](#limitações-e-próximos-passos).
+O token de admin é obtido via ROPC no realm `master` com `admin-cli`. A etapa de limpeza de `requiredActions` é necessária em Keycloak 26.x, que adiciona `VERIFY_PROFILE` dinamicamente.
 
 ### Login (`POST /auth/login`)
 
@@ -331,11 +331,9 @@ Os testes de integração usam **Testcontainers** com containers reais de Keyclo
 
 ---
 
-## Limitações e próximos passos
+## Decisão de segurança
 
-### Endpoints sem proteção inbound
-
-Os endpoints `/auth/*` não validam JWT de entrada — qualquer requisição sem token é aceita. A proteção via `@EnableJwtValidation` (da `security-lib` da plataforma) está deferida para quando a lib estiver disponível. **Em produção, proteja os endpoints via API Gateway / Traefik.**
+Os endpoints `/auth/*` não validam JWT de entrada por design — são os endpoints que emitem tokens (register, login, refresh). Em produção, o controle de acesso externo deve ser feito via API Gateway ou Traefik (rate limiting, IP allowlist).
 
 ---
 

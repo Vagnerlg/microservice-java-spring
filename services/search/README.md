@@ -6,7 +6,7 @@
 ![Kafka](https://img.shields.io/badge/Apache%20Kafka-consumer-231F20?logo=apachekafka)
 ![JaCoCo](https://img.shields.io/badge/coverage-≥80%25-brightgreen?logo=jacoco)
 ![Testcontainers](https://img.shields.io/badge/tests-Testcontainers-blue?logo=docker)
-![CI](https://github.com/Vagnerlg/java-spring-boot-base-project/actions/workflows/quality.yml/badge.svg)
+[![search-service CI](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/search-quality.yml/badge.svg)](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/search-quality.yml)
 
 Serviço de busca de produtos da plataforma de e-commerce. Implementa o modelo de leitura CQRS: consome eventos do tópico Kafka `product`, mantém o índice Elasticsearch atualizado e expõe uma API de busca full-text paginada.
 
@@ -211,10 +211,10 @@ curl "http://localhost:8110/products/search?q=tênis&category=calcados&page=0&si
 Na raiz do repositório:
 
 ```bash
-docker compose -f infrastructure/docker-compose.yml up -d
+docker compose up -d
 ```
 
-Inicia: Elasticsearch, Kafka, Zookeeper e o stack de observabilidade (OTel Collector, Grafana, Loki, Prometheus).
+Para o search-service os serviços essenciais são Elasticsearch (`:9200`) e Kafka (`:9092`).
 
 ### 2. Inicie o serviço
 

@@ -13,7 +13,7 @@
 
 Plataforma de e-commerce construída com **Java 21 + Spring Boot 4**, organizada em microserviços independentes. Cada serviço possui seu próprio banco de dados e se comunica via **Apache Kafka**.
 
-O projeto está em construção progressiva — `product-service`, `search-service`, `auth-service`, `user-service`, `cart-service`, `order-service`, `inventory-service` e `notification-service` já estão implementados.
+Todos os 8 microserviços estão implementados e integrados — a plataforma está operacional como portfolio.
 
 ---
 
@@ -221,6 +221,14 @@ Todos os eventos seguem o padrão **topic per aggregate** com envelope fixo:
 
 ---
 
+## Testando a plataforma
+
+Quer explorar os fluxos da plataforma manualmente com `curl`? Consulte o **[Tutorial de teste manual](docs/tutorial.md)** — cobre os três cenários principais (happy path, estoque esgotado, busca CQRS) com comandos prontos para copiar, do setup do zero até os fluxos de Saga.
+
+Para um demo interativo com passo a passo automático, execute `./demo.sh`.
+
+---
+
 ## Ambiente Local
 
 ### Pré-requisito (primeira vez)
@@ -300,48 +308,14 @@ Todo tráfego HTTP passa pelo **Traefik** na porta `8080`. Portas HTTP diretas f
 
 ---
 
-## Roadmap
+## Melhorias Futuras
 
-Próximas etapas planejadas para completar a plataforma como portfolio.
+Itens fora do escopo do portfolio, documentados para demonstrar consciência arquitetural.
 
-### Fase 1 — Lacunas funcionais
-
-Fechar gaps nos serviços já implementados:
-
-| Item | Serviço | O que fazer |
+| Item | Serviço(s) | Descrição |
 |---|---|---|
-| `stock-level.LOW` | `inventory` | Publicar evento quando `availableQuantity <= STOCK_LOW_THRESHOLD` (env var) |
-
-### ~~Fase 2 — Docker-compose completo + Traefik~~ ✅ Concluído
-
-Traefik v2.11 configurado como roteador único. Todos os serviços acessíveis via `localhost:8080/{path}` — ver seção [Ambiente Local](#ambiente-local).
-
-### Fase 3 — Validar observabilidade
-
-Confirmar que os três sinais chegam corretamente ao Grafana após subir toda a stack:
-
-- **Logs** — Loki: mensagens com `traceId` e `spanId` correlacionados
-- **Traces** — Tempo: spans do Spring + MongoDB/Elasticsearch/Kafka visíveis
-- **Métricas** — Prometheus: JVM, pool de threads, consumer lag
-
-### Fase 4 — Script de demo interativo
-
-Script `bash` + `curl` + `jq` para guiar qualquer pessoa que clonou o repo pelo fluxo completo da plataforma:
-
-```
-1. Login admin (pré-configurado) → criar produto
-   ↳ poll até search-service indexar (retry 1s, max 15s)
-2. Registrar usuário → login → obter JWT
-3. Adicionar produto ao carrinho → checkout
-   ↳ poll até order.status = CONFIRMED
-4. Consultar pedido confirmado
-5. "Explore:" → links Grafana · Kafka UI · GET /products/search
-```
-
-### Débitos técnicos (sem prazo definido)
-
-| Item | Descrição |
-|---|---|
-| Outbox Pattern + Debezium | `order-service` e `inventory-service` publicam diretamente no Kafka — risco de janela de inconsistência |
-| Dead Letter Topic / retry | Consumers descartam eventos com falha silenciosamente — sem reprocessamento |
-| `libs/` compartilhadas | `security-lib`, `kafka-events-lib` (Avro) e `common-lib` não existem — cada serviço reimplementa padrões próprios |
+| Outbox Pattern + Debezium | `order`, `inventory` | Eventos são publicados direto no Kafka — risco de inconsistência em caso de crash entre a transação e o envio |
+| Dead Letter Topic / retry | Todos os consumers | Eventos com falha de desserialização são descartados sem reprocessamento |
+| `stock-level.LOW` | `inventory` | Evento de alerta de estoque baixo para o `notification-service` não está implementado |
+| API REST de estoque | `inventory` | Ajuste manual de `totalQuantity` via HTTP não está disponível — inicialização é feita apenas via evento `product.CREATED` |
+| Libs compartilhadas | Todos | `security-lib`, `kafka-events-lib` e `common-lib` não existem — cada serviço reimplementa padrões próprios |
