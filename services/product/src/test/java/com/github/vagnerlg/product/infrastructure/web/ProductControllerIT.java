@@ -141,6 +141,9 @@ class ProductControllerIT {
                 consumer.poll(Duration.ofMillis(100));
             }
 
+            consumer.seekToEnd(consumer.assignment());
+            consumer.assignment().forEach(tp -> consumer.position(tp));
+
             var body = """
                     {"name":"Kafka Event Product","description":"desc","price":50.00,"category":"Test"}
                     """;
