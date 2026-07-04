@@ -2,6 +2,12 @@ include:
   - docker-compose.data.yml
   - docker-compose.monitoring.yml
 
+x-otel: &otel-env
+  OTEL_ENDPOINT: http://otel-collector:4318
+  MANAGEMENT_OTLP_METRICS_EXPORT_URL: http://otel-collector:4318/v1/metrics
+  MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT: http://otel-collector:4318/v1/traces
+  MANAGEMENT_OPENTELEMETRY_LOGGING_EXPORT_OTLP_ENDPOINT: http://otel-collector:4318/v1/logs
+
 services:
 
   keycloak:
@@ -26,8 +32,10 @@ services:
       - "8102:8102"
       - "5005:5005"
     environment:
+      <<: *otel-env
       MONGO_HOST: mongodb
       KAFKA_BROKERS: kafka:29092
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/ecommerce
     command:
       - ./mvnw
       - spring-boot:run
@@ -35,6 +43,7 @@ services:
     depends_on:
       - mongodb
       - kafka
+      - otel-collector
 
   auth:
     image: maven:3.9-eclipse-temurin-21
@@ -47,6 +56,7 @@ services:
       - "8121:8121"
       - "5006:5006"
     environment:
+      <<: *otel-env
       REDIS_HOST: redis
       KAFKA_BROKERS: kafka:29092
       KEYCLOAK_SERVER_URL: http://keycloak:8080
@@ -58,6 +68,7 @@ services:
       - redis
       - kafka
       - keycloak
+      - otel-collector
 
   search:
     image: maven:3.9-eclipse-temurin-21
@@ -70,6 +81,7 @@ services:
       - "8111:8111"
       - "5007:5007"
     environment:
+      <<: *otel-env
       ELASTICSEARCH_URI: http://elasticsearch:9200
       KAFKA_BROKERS: kafka:29092
     command:
@@ -79,6 +91,7 @@ services:
     depends_on:
       - elasticsearch
       - kafka
+      - otel-collector
 
   cart:
     image: maven:3.9-eclipse-temurin-21
@@ -91,6 +104,7 @@ services:
       - "8141:8141"
       - "5009:5009"
     environment:
+      <<: *otel-env
       REDIS_HOST: redis
       KAFKA_BROKERS: kafka:29092
       KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/ecommerce
@@ -102,6 +116,7 @@ services:
       - redis
       - kafka
       - keycloak
+      - otel-collector
 
   user:
     image: maven:3.9-eclipse-temurin-21
@@ -114,6 +129,7 @@ services:
       - "8131:8131"
       - "5008:5008"
     environment:
+      <<: *otel-env
       DB_HOST: postgres
       KAFKA_BROKERS: kafka:29092
       KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/ecommerce
@@ -125,3 +141,73 @@ services:
       - postgres
       - kafka
       - keycloak
+      - otel-collector
+
+  order:
+    image: maven:3.9-eclipse-temurin-21
+    working_dir: /app
+    volumes:
+      - ./services/order:/app
+      - ${HOME}/.m2:/root/.m2
+    ports:
+      - "8150:8150"
+      - "8151:8151"
+      - "5010:5010"
+    environment:
+      <<: *otel-env
+      DB_HOST: postgres
+      KAFKA_BROKERS: kafka:29092
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/ecommerce
+    command:
+      - ./mvnw
+      - spring-boot:run
+      - "-Dspring-boot.run.jvmArguments=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5010"
+    depends_on:
+      - postgres
+      - kafka
+      - keycloak
+      - otel-collector
+
+  inventory:
+    image: maven:3.9-eclipse-temurin-21
+    working_dir: /app
+    volumes:
+      - ./services/inventory:/app
+      - ${HOME}/.m2:/root/.m2
+    ports:
+      - "8160:8160"
+      - "8161:8161"
+      - "5011:5011"
+    environment:
+      <<: *otel-env
+      DB_HOST: postgres
+      KAFKA_BROKERS: kafka:29092
+    command:
+      - ./mvnw
+      - spring-boot:run
+      - "-Dspring-boot.run.jvmArguments=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5011"
+    depends_on:
+      - postgres
+      - kafka
+      - otel-collector
+
+  notification:
+    image: maven:3.9-eclipse-temurin-21
+    working_dir: /app
+    volumes:
+      - ./services/notification:/app
+      - ${HOME}/.m2:/root/.m2
+    ports:
+      - "8170:8170"
+      - "8171:8171"
+      - "5012:5012"
+    environment:
+      <<: *otel-env
+      KAFKA_BROKERS: kafka:29092
+    command:
+      - ./mvnw
+      - spring-boot:run
+      - "-Dspring-boot.run.jvmArguments=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5012"
+    depends_on:
+      - kafka
+      - otel-collector

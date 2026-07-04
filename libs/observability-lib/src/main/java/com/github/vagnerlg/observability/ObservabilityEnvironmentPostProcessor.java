@@ -28,6 +28,17 @@ public class ObservabilityEnvironmentPostProcessor implements EnvironmentPostPro
             sources.add(new MapPropertySource("observability-prod-defaults", prodProps));
         }
         sources.forEach(source -> environment.getPropertySources().addLast(source));
+
+        // Resolve OTEL_ENDPOINT now (env vars are available at this point) and inject
+        // concrete URLs so OtlpMeterRegistry picks them up before its auto-configuration
+        // runs — without this, the Micrometer OtlpMeterRegistry falls back to its Java
+        // default of localhost:4318 instead of reading the placeholder from observability-defaults.yml.
+        String otelEndpoint = environment.getProperty("OTEL_ENDPOINT", "http://localhost:4318");
+        Map<String, Object> otelProps = new LinkedHashMap<>();
+        otelProps.put("management.otlp.metrics.export.url", otelEndpoint + "/v1/metrics");
+        otelProps.put("management.opentelemetry.tracing.export.otlp.endpoint", otelEndpoint + "/v1/traces");
+        otelProps.put("management.opentelemetry.logging.export.otlp.endpoint", otelEndpoint + "/v1/logs");
+        environment.getPropertySources().addLast(new MapPropertySource("observability-otel-resolved", otelProps));
     }
 
     private List<PropertySource<?>> loadDefaults() {
