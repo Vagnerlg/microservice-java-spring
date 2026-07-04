@@ -1,4 +1,4 @@
-package com.github.vagnerlg.user.config;
+package com.github.vagnerlg.inventory.infrastructure.kafka;
 
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;

@@ -1,4 +1,4 @@
-package com.github.vagnerlg.order.config;
+package com.github.vagnerlg.cart.infrastructure.kafka;
 
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;

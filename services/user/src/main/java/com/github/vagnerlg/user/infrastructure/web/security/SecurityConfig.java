@@ -1,4 +1,4 @@
-package com.github.vagnerlg.order.config;
+package com.github.vagnerlg.user.infrastructure.web.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

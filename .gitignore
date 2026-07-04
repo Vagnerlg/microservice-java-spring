@@ -4,3 +4,5 @@
 .env
 services/product/.env
 services/search/.env
+
+.DS_Store

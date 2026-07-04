@@ -1,4 +1,4 @@
-package com.github.vagnerlg.search.config;
+package com.github.vagnerlg.search.infrastructure.elasticsearch;
 
 import co.elastic.clients.json.JsonpMapper;
 import co.elastic.clients.transport.ElasticsearchTransport;

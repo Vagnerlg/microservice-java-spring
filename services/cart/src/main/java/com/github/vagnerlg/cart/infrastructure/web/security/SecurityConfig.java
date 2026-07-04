@@ -1,4 +1,4 @@
-package com.github.vagnerlg.user.config;
+package com.github.vagnerlg.cart.infrastructure.web.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
