@@ -1,3 +1,7 @@
+networks:
+  platform-net:
+    external: true
+
 services:
 
   redis:
@@ -5,6 +9,8 @@ services:
     ports:
       - "6379:6379"
     command: redis-server --save "" --appendonly no
+    networks:
+      - platform-net
 
   mongodb:
     image: mongo:7
@@ -13,17 +19,24 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-admin}
     ports:
       - "27017:27017"
+    networks:
+      - platform-net
 
   mongo-express:
     image: mongo-express:latest
-    ports:
-      - "8082:8081"
     environment:
       ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGO_USER:-admin}
       ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGO_PASSWORD:-admin}
       ME_CONFIG_MONGODB_URL: mongodb://${MONGO_USER:-admin}:${MONGO_PASSWORD:-admin}@mongodb:27017/
       ME_CONFIG_MONGODB_SERVER: mongodb
       ME_CONFIG_BASICAUTH: false
+      ME_CONFIG_SITE_BASEURL: /mongo/
+    networks:
+      - platform-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.mongo-express.rule=PathPrefix(`/mongo`)"
+      - "traefik.http.services.mongo-express.loadbalancer.server.port=8081"
     depends_on:
       - mongodb
 
@@ -44,6 +57,8 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    networks:
+      - platform-net
 
   schema-registry:
     image: confluentinc/cp-schema-registry:7.7.1
@@ -54,15 +69,22 @@ services:
       SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:29092
     depends_on:
       - kafka
+    networks:
+      - platform-net
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
-    ports:
-      - "8083:8080"
     environment:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
       KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schema-registry:8081
+      SERVER_SERVLET_CONTEXT_PATH: /kafka
+    networks:
+      - platform-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.kafka-ui.rule=PathPrefix(`/kafka`)"
+      - "traefik.http.services.kafka-ui.loadbalancer.server.port=8080"
     depends_on:
       - kafka
       - schema-registry
@@ -75,6 +97,8 @@ services:
       discovery.type: single-node
       xpack.security.enabled: "false"
       ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    networks:
+      - platform-net
 
   postgres:
     image: postgres:17-alpine
@@ -86,3 +110,5 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-user}
     volumes:
       - ./config/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - platform-net

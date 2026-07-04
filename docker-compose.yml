@@ -1,4 +1,5 @@
 include:
+  - docker-compose.util.yml
   - docker-compose.data.yml
   - docker-compose.monitoring.yml
 
@@ -8,18 +9,12 @@ x-otel: &otel-env
   MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT: http://otel-collector:4318/v1/traces
   MANAGEMENT_OPENTELEMETRY_LOGGING_EXPORT_OTLP_ENDPOINT: http://otel-collector:4318/v1/logs
 
-services:
+networks:
+  platform-net:
+    name: platform-net
+    external: true
 
-  keycloak:
-    image: quay.io/keycloak/keycloak:26.2
-    command: start-dev --import-realm
-    ports:
-      - "8084:8080"
-    environment:
-      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
-      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
-    volumes:
-      - ./config/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json
+services:
 
   product:
     image: maven:3.9-eclipse-temurin-21
@@ -28,18 +23,24 @@ services:
       - ./services/product:/app
       - ${HOME}/.m2:/root/.m2
     ports:
-      - "8101:8101"
-      - "8102:8102"
       - "5005:5005"
+    networks:
+      - platform-net
     environment:
       <<: *otel-env
       MONGO_HOST: mongodb
       KAFKA_BROKERS: kafka:29092
-      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/ecommerce
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/keycloak/realms/ecommerce
     command:
       - ./mvnw
       - spring-boot:run
       - "-Dspring-boot.run.jvmArguments=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.product.rule=PathPrefix(`/api/product`)"
+      - "traefik.http.routers.product.middlewares=strip-product"
+      - "traefik.http.middlewares.strip-product.stripprefix.prefixes=/api/product"
+      - "traefik.http.services.product.loadbalancer.server.port=8101"
     depends_on:
       - mongodb
       - kafka
@@ -52,18 +53,24 @@ services:
       - ./services/auth:/app
       - ${HOME}/.m2:/root/.m2
     ports:
-      - "8120:8120"
-      - "8121:8121"
       - "5006:5006"
+    networks:
+      - platform-net
     environment:
       <<: *otel-env
       REDIS_HOST: redis
       KAFKA_BROKERS: kafka:29092
-      KEYCLOAK_SERVER_URL: http://keycloak:8080
+      KEYCLOAK_SERVER_URL: http://keycloak:8080/keycloak
     command:
       - ./mvnw
       - spring-boot:run
       - "-Dspring-boot.run.jvmArguments=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5006"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.auth.rule=PathPrefix(`/api/auth`)"
+      - "traefik.http.routers.auth.middlewares=strip-auth"
+      - "traefik.http.middlewares.strip-auth.stripprefix.prefixes=/api/auth"
+      - "traefik.http.services.auth.loadbalancer.server.port=8120"
     depends_on:
       - redis
       - kafka
@@ -77,9 +84,9 @@ services:
       - ./services/search:/app
       - ${HOME}/.m2:/root/.m2
     ports:
-      - "8110:8110"
-      - "8111:8111"
       - "5007:5007"
+    networks:
+      - platform-net
     environment:
       <<: *otel-env
       ELASTICSEARCH_URI: http://elasticsearch:9200
@@ -88,6 +95,12 @@ services:
       - ./mvnw
       - spring-boot:run
       - "-Dspring-boot.run.jvmArguments=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5007"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.search.rule=PathPrefix(`/api/search`)"
+      - "traefik.http.routers.search.middlewares=strip-search"
+      - "traefik.http.middlewares.strip-search.stripprefix.prefixes=/api/search"
+      - "traefik.http.services.search.loadbalancer.server.port=8110"
     depends_on:
       - elasticsearch
       - kafka
@@ -100,18 +113,24 @@ services:
       - ./services/cart:/app
       - ${HOME}/.m2:/root/.m2
     ports:
-      - "8140:8140"
-      - "8141:8141"
       - "5009:5009"
+    networks:
+      - platform-net
     environment:
       <<: *otel-env
       REDIS_HOST: redis
       KAFKA_BROKERS: kafka:29092
-      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/ecommerce
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/keycloak/realms/ecommerce
     command:
       - ./mvnw
       - spring-boot:run
       - "-Dspring-boot.run.jvmArguments=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5009"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.cart.rule=PathPrefix(`/api/cart`)"
+      - "traefik.http.routers.cart.middlewares=strip-cart"
+      - "traefik.http.middlewares.strip-cart.stripprefix.prefixes=/api/cart"
+      - "traefik.http.services.cart.loadbalancer.server.port=8140"
     depends_on:
       - redis
       - kafka
@@ -125,18 +144,24 @@ services:
       - ./services/user:/app
       - ${HOME}/.m2:/root/.m2
     ports:
-      - "8130:8130"
-      - "8131:8131"
       - "5008:5008"
+    networks:
+      - platform-net
     environment:
       <<: *otel-env
       DB_HOST: postgres
       KAFKA_BROKERS: kafka:29092
-      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/ecommerce
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/keycloak/realms/ecommerce
     command:
       - ./mvnw
       - spring-boot:run
       - "-Dspring-boot.run.jvmArguments=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5008"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.user.rule=PathPrefix(`/api/user`)"
+      - "traefik.http.routers.user.middlewares=strip-user"
+      - "traefik.http.middlewares.strip-user.stripprefix.prefixes=/api/user"
+      - "traefik.http.services.user.loadbalancer.server.port=8130"
     depends_on:
       - postgres
       - kafka
@@ -150,18 +175,24 @@ services:
       - ./services/order:/app
       - ${HOME}/.m2:/root/.m2
     ports:
-      - "8150:8150"
-      - "8151:8151"
       - "5010:5010"
+    networks:
+      - platform-net
     environment:
       <<: *otel-env
       DB_HOST: postgres
       KAFKA_BROKERS: kafka:29092
-      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/ecommerce
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/keycloak/realms/ecommerce
     command:
       - ./mvnw
       - spring-boot:run
       - "-Dspring-boot.run.jvmArguments=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5010"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.order.rule=PathPrefix(`/api/order`)"
+      - "traefik.http.routers.order.middlewares=strip-order"
+      - "traefik.http.middlewares.strip-order.stripprefix.prefixes=/api/order"
+      - "traefik.http.services.order.loadbalancer.server.port=8150"
     depends_on:
       - postgres
       - kafka
@@ -175,9 +206,9 @@ services:
       - ./services/inventory:/app
       - ${HOME}/.m2:/root/.m2
     ports:
-      - "8160:8160"
-      - "8161:8161"
       - "5011:5011"
+    networks:
+      - platform-net
     environment:
       <<: *otel-env
       DB_HOST: postgres
@@ -186,6 +217,12 @@ services:
       - ./mvnw
       - spring-boot:run
       - "-Dspring-boot.run.jvmArguments=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5011"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.inventory.rule=PathPrefix(`/api/inventory`)"
+      - "traefik.http.routers.inventory.middlewares=strip-inventory"
+      - "traefik.http.middlewares.strip-inventory.stripprefix.prefixes=/api/inventory"
+      - "traefik.http.services.inventory.loadbalancer.server.port=8160"
     depends_on:
       - postgres
       - kafka
@@ -198,9 +235,9 @@ services:
       - ./services/notification:/app
       - ${HOME}/.m2:/root/.m2
     ports:
-      - "8170:8170"
-      - "8171:8171"
       - "5012:5012"
+    networks:
+      - platform-net
     environment:
       <<: *otel-env
       KAFKA_BROKERS: kafka:29092

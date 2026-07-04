@@ -221,6 +221,85 @@ Todos os eventos seguem o padrão **topic per aggregate** com envelope fixo:
 
 ---
 
+## Ambiente Local
+
+### Pré-requisito (primeira vez)
+
+```bash
+docker network create platform-net
+```
+
+### Subir / parar a stack
+
+```bash
+# Subir tudo
+docker compose up -d
+
+# Parar e remover containers
+docker compose down
+```
+
+---
+
+### Serviços de Aplicação
+
+Todo tráfego HTTP passa pelo **Traefik** na porta `8080`. Portas HTTP diretas foram removidas.
+
+| Serviço | URL externa |
+|---|---|
+| product-service | `http://localhost:8080/api/product` |
+| auth-service | `http://localhost:8080/api/auth` |
+| search-service | `http://localhost:8080/api/search` |
+| user-service | `http://localhost:8080/api/user` |
+| cart-service | `http://localhost:8080/api/cart` |
+| order-service | `http://localhost:8080/api/order` |
+| inventory-service | `http://localhost:8080/api/inventory` |
+
+`notification-service` não expõe HTTP — Kafka consumer puro.
+
+---
+
+### Plataforma e Observabilidade
+
+| Ferramenta | URL |
+|---|---|
+| **Traefik Dashboard** | `http://localhost:8090/dashboard/` |
+| **Grafana** | `http://localhost:8080/grafana` |
+| **Prometheus** | `http://localhost:8080/prometheus` |
+| **Keycloak Admin** | `http://localhost:8080/keycloak` |
+| **Kafka UI** | `http://localhost:8080/kafka` |
+| **Mongo Express** | `http://localhost:8080/mongo` |
+
+---
+
+### Infraestrutura de Dados (acesso direto)
+
+| Serviço | Host:Porta |
+|---|---|
+| PostgreSQL | `localhost:5432` |
+| MongoDB | `localhost:27017` |
+| Redis | `localhost:6379` |
+| Kafka | `localhost:9092` |
+| Elasticsearch | `localhost:9200` |
+| Schema Registry | `localhost:8081` |
+
+---
+
+### Debug JDWP (IDE)
+
+| Serviço | Porta |
+|---|---|
+| product-service | 5005 |
+| auth-service | 5006 |
+| search-service | 5007 |
+| user-service | 5008 |
+| cart-service | 5009 |
+| order-service | 5010 |
+| inventory-service | 5011 |
+| notification-service | 5012 |
+
+---
+
 ## Roadmap
 
 Próximas etapas planejadas para completar a plataforma como portfolio.
@@ -233,16 +312,9 @@ Fechar gaps nos serviços já implementados:
 |---|---|---|
 | `stock-level.LOW` | `inventory` | Publicar evento quando `availableQuantity <= STOCK_LOW_THRESHOLD` (env var) |
 
-### Fase 2 — Docker-compose completo + Traefik
+### ~~Fase 2 — Docker-compose completo + Traefik~~ ✅ Concluído
 
-Implementar o plano detalhado em [`docs/traefik-routing-plan.md`](docs/traefik-routing-plan.md) e adicionar os serviços faltantes:
-
-| Serviço | Acesso externo | Observação |
-|---|---|---|
-| `order` | Traefik `/api/order` | — |
-| `cart` | Traefik `/api/cart` | — |
-| `inventory` | Actuator via porta direta | Sem HTTP de negócio |
-| `notification` | Actuator via porta direta | Sem HTTP de negócio |
+Traefik v2.11 configurado como roteador único. Todos os serviços acessíveis via `localhost:8080/{path}` — ver seção [Ambiente Local](#ambiente-local).
 
 ### Fase 3 — Validar observabilidade
 
