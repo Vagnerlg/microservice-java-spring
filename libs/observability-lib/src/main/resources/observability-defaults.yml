@@ -1,3 +1,10 @@
+spring:
+  kafka:
+    template:
+      observation-enabled: true
+    listener:
+      observation-enabled: true
+
 management:
   endpoints:
     web:

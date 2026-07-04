@@ -42,7 +42,8 @@ class SecurityConfiguration {
             return roles.stream()
                     .filter(String.class::isInstance)
                     .map(String.class::cast)
-                    .<GrantedAuthority>map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+                    .<GrantedAuthority>map(role -> new SimpleGrantedAuthority(
+                            role.startsWith("ROLE_") ? role : "ROLE_" + role))
                     .toList();
         });
         return converter;
