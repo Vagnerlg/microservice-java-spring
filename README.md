@@ -247,6 +247,12 @@ docker compose up -d
 docker compose down
 ```
 
+> **Primeira subida em máquina nova:** o `docker compose up -d` builda a `observability-lib` antes de qualquer serviço iniciar, e cada serviço ainda baixa suas próprias dependências Maven pela primeira vez — isso pode levar alguns minutos. Se você bater nas rotas do Traefik logo após o comando retornar e receber `404`, é porque os serviços ainda não terminaram de subir (o router daquele serviço só existe no Traefik depois que o container está de pé). Acompanhe o boot com:
+> ```bash
+> docker compose logs -f product auth cart user order inventory search notification | grep "Started.*Application"
+> ```
+> Quando as 8 linhas `Started XxxApplication in X seconds` aparecerem, a stack está pronta para receber requisições.
+
 ---
 
 ### Serviços de Aplicação
@@ -255,15 +261,14 @@ Todo tráfego HTTP passa pelo **Traefik** na porta `8080`. Portas HTTP diretas f
 
 | Serviço | URL externa |
 |---|---|
-| product-service | `http://localhost:8080/api/product` |
+| product-service | `http://localhost:8080/api/products` |
 | auth-service | `http://localhost:8080/api/auth` |
 | search-service | `http://localhost:8080/api/search` |
-| user-service | `http://localhost:8080/api/user` |
-| cart-service | `http://localhost:8080/api/cart` |
-| order-service | `http://localhost:8080/api/order` |
-| inventory-service | `http://localhost:8080/api/inventory` |
+| user-service | `http://localhost:8080/api/users` |
+| cart-service | `http://localhost:8080/api/carts` |
+| order-service | `http://localhost:8080/api/orders` |
 
-`notification-service` não expõe HTTP — Kafka consumer puro.
+`inventory-service` e `notification-service` não expõem HTTP — Kafka consumer puro.
 
 ---
 

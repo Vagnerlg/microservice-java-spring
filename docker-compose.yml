@@ -16,6 +16,17 @@ networks:
 
 services:
 
+  observability-lib:
+    image: maven:3.9-eclipse-temurin-21
+    working_dir: /app
+    volumes:
+      - ./libs/observability-lib:/app
+      - ${HOME}/.m2:/root/.m2
+    command:
+      - mvn
+      - install
+      - -DskipTests
+
   product:
     image: maven:3.9-eclipse-temurin-21
     working_dir: /app
@@ -41,9 +52,14 @@ services:
       - "traefik.http.routers.product.middlewares=strip-api@docker"
       - "traefik.http.services.product.loadbalancer.server.port=8101"
     depends_on:
-      - mongodb
-      - kafka
-      - otel-collector
+      observability-lib:
+        condition: service_completed_successfully
+      mongodb:
+        condition: service_started
+      kafka:
+        condition: service_started
+      otel-collector:
+        condition: service_started
 
   auth:
     image: maven:3.9-eclipse-temurin-21
@@ -70,10 +86,16 @@ services:
       - "traefik.http.routers.auth.middlewares=strip-api@docker"
       - "traefik.http.services.auth.loadbalancer.server.port=8120"
     depends_on:
-      - redis
-      - kafka
-      - keycloak
-      - otel-collector
+      observability-lib:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+      kafka:
+        condition: service_started
+      keycloak:
+        condition: service_started
+      otel-collector:
+        condition: service_started
 
   search:
     image: maven:3.9-eclipse-temurin-21
@@ -99,9 +121,14 @@ services:
       - "traefik.http.routers.search.middlewares=strip-api@docker"
       - "traefik.http.services.search.loadbalancer.server.port=8110"
     depends_on:
-      - elasticsearch
-      - kafka
-      - otel-collector
+      observability-lib:
+        condition: service_completed_successfully
+      elasticsearch:
+        condition: service_started
+      kafka:
+        condition: service_started
+      otel-collector:
+        condition: service_started
 
   cart:
     image: maven:3.9-eclipse-temurin-21
@@ -128,10 +155,16 @@ services:
       - "traefik.http.routers.cart.middlewares=strip-api@docker"
       - "traefik.http.services.cart.loadbalancer.server.port=8140"
     depends_on:
-      - redis
-      - kafka
-      - keycloak
-      - otel-collector
+      observability-lib:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+      kafka:
+        condition: service_started
+      keycloak:
+        condition: service_started
+      otel-collector:
+        condition: service_started
 
   user:
     image: maven:3.9-eclipse-temurin-21
@@ -158,10 +191,16 @@ services:
       - "traefik.http.routers.user.middlewares=strip-api@docker"
       - "traefik.http.services.user.loadbalancer.server.port=8130"
     depends_on:
-      - postgres
-      - kafka
-      - keycloak
-      - otel-collector
+      observability-lib:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_started
+      kafka:
+        condition: service_started
+      keycloak:
+        condition: service_started
+      otel-collector:
+        condition: service_started
 
   order:
     image: maven:3.9-eclipse-temurin-21
@@ -188,10 +227,16 @@ services:
       - "traefik.http.routers.order.middlewares=strip-api@docker"
       - "traefik.http.services.order.loadbalancer.server.port=8150"
     depends_on:
-      - postgres
-      - kafka
-      - keycloak
-      - otel-collector
+      observability-lib:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_started
+      kafka:
+        condition: service_started
+      keycloak:
+        condition: service_started
+      otel-collector:
+        condition: service_started
 
   inventory:
     image: maven:3.9-eclipse-temurin-21
@@ -212,9 +257,14 @@ services:
       - spring-boot:run
       - "-Dspring-boot.run.jvmArguments=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5011"
     depends_on:
-      - postgres
-      - kafka
-      - otel-collector
+      observability-lib:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_started
+      kafka:
+        condition: service_started
+      otel-collector:
+        condition: service_started
 
   notification:
     image: maven:3.9-eclipse-temurin-21
@@ -234,5 +284,9 @@ services:
       - spring-boot:run
       - "-Dspring-boot.run.jvmArguments=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5012"
     depends_on:
-      - kafka
-      - otel-collector
+      observability-lib:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_started
+      otel-collector:
+        condition: service_started
