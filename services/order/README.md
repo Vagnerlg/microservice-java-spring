@@ -15,8 +15,8 @@ Serviço de pedidos da plataforma de e-commerce. Recebe o sinal de checkout via 
 - [Stack](#stack)
 - [Arquitetura interna (DDD com hexagonal)](#arquitetura-interna-ddd-com-hexagonal)
 - [Saga — fluxo de pedido](#saga--fluxo-de-pedido)
-- [Eventos Kafka](#eventos-kafka)
 - [API Reference](#api-reference)
+- [Eventos Kafka](#eventos-kafka)
 - [Como rodar localmente](#como-rodar-localmente)
 - [Testes e qualidade](#testes-e-qualidade)
 - [CI](#ci)
@@ -101,61 +101,6 @@ stock.RESERVED    stock.UNAVAILABLE
 
 ---
 
-## Eventos Kafka
-
-### Consumidos
-
-| Tópico | Evento | Producer | Ação |
-|---|---|---|---|
-| `cart` | `CHECKOUT` | `cart-service` | Cria pedido `PENDING` |
-| `stock-reservation` | `RESERVED` | `inventory-service` | Muda status para `CONFIRMED` |
-| `stock-reservation` | `UNAVAILABLE` | `inventory-service` | Muda status para `CANCELLED` |
-
-**Formato de `cart.CHECKOUT`:**
-
-```json
-{
-  "event": "CHECKOUT",
-  "data": {
-    "userId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-    "items": [
-      { "productId": "p-001", "name": "Widget", "price": 29.90, "quantity": 2 }
-    ],
-    "checkoutAt": "2026-06-22T01:00:00Z"
-  }
-}
-```
-
-**Formato de `stock-reservation`:**
-
-```json
-{ "event": "RESERVED",     "data": { "orderId": "f47ac10b-...", "reason": null } }
-{ "event": "UNAVAILABLE",  "data": { "orderId": "f47ac10b-...", "reason": "Out of stock" } }
-```
-
-### Produzidos
-
-| Tópico | Evento | Situação |
-|---|---|---|
-| `order` | `CREATED` | Pedido criado com sucesso |
-| `order` | `CANCELLED` | Pedido cancelado (pelo sistema ou pelo usuário) |
-
-**Formato:**
-
-```json
-{
-  "event": "CREATED",
-  "data": {
-    "orderId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
-    "userId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-    "totalPrice": 59.80,
-    "createdAt": "2026-06-22T01:00:00Z"
-  }
-}
-```
-
----
-
 ## API Reference
 
 A aplicação sobe na porta `8150`. O Actuator fica na porta `8151`.
@@ -235,6 +180,61 @@ curl -s -X DELETE http://localhost:8150/orders/f47ac10b-58cc-4372-a567-0e02b2c3d
 | `403 Forbidden` | Pedido pertence a outro usuário |
 | `404 Not Found` | Pedido não encontrado |
 | `422 Unprocessable Entity` | Tentativa de cancelar pedido que não está `PENDING` |
+
+---
+
+## Eventos Kafka
+
+### Consumidos
+
+| Tópico | Evento | Producer | Ação |
+|---|---|---|---|
+| `cart` | `CHECKOUT` | `cart-service` | Cria pedido `PENDING` |
+| `stock-reservation` | `RESERVED` | `inventory-service` | Muda status para `CONFIRMED` |
+| `stock-reservation` | `UNAVAILABLE` | `inventory-service` | Muda status para `CANCELLED` |
+
+**Formato de `cart.CHECKOUT`:**
+
+```json
+{
+  "event": "CHECKOUT",
+  "data": {
+    "userId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "items": [
+      { "productId": "p-001", "name": "Widget", "price": 29.90, "quantity": 2 }
+    ],
+    "checkoutAt": "2026-06-22T01:00:00Z"
+  }
+}
+```
+
+**Formato de `stock-reservation`:**
+
+```json
+{ "event": "RESERVED",     "data": { "orderId": "f47ac10b-...", "reason": null } }
+{ "event": "UNAVAILABLE",  "data": { "orderId": "f47ac10b-...", "reason": "Out of stock" } }
+```
+
+### Produzidos
+
+| Tópico | Evento | Situação |
+|---|---|---|
+| `order` | `CREATED` | Pedido criado com sucesso |
+| `order` | `CANCELLED` | Pedido cancelado (pelo sistema ou pelo usuário) |
+
+**Formato:**
+
+```json
+{
+  "event": "CREATED",
+  "data": {
+    "orderId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+    "userId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "totalPrice": 59.80,
+    "createdAt": "2026-06-22T01:00:00Z"
+  }
+}
+```
 
 ---
 

@@ -1,31 +1,6 @@
 # Tutorial — Testando a Plataforma Manualmente
 
-Este guia permite explorar os três fluxos principais da plataforma sem executar o script `demo.sh` — útil para quem quer entender cada chamada individualmente ou adaptar os exemplos para sua própria conta.
-
----
-
-## Para quem é este guia
-
-| Perfil | Ponto de entrada |
-|---|---|
-| **Avaliador / entrevistador** | Você já tem Docker, curl e jq. Pule para [Pré-requisitos rápidos](#pré-requisitos-rápidos) e depois vá direto para os cenários. |
-| **Developer externo** | Siga o [Setup completo](#setup-completo) para instalar dependências, clonar o repositório e subir a stack do zero. |
-
----
-
-## Pré-requisitos rápidos (avaliador)
-
-```bash
-# Criar rede Docker (apenas na primeira vez)
-docker network create platform-net
-
-# Subir a stack
-docker compose up -d
-
-# Verificar que o Traefik está respondendo (aguarde ~60–90s)
-curl -s http://localhost:8080/ -o /dev/null -w "HTTP %{http_code}\n"
-# Esperado: HTTP 404 — Traefik respondendo, nenhuma rota padrão configurada
-```
+Este guia permite explorar os três fluxos principais da plataforma — útil para quem quer entender cada chamada e/ou adaptar os exemplos.
 
 ---
 
@@ -54,13 +29,7 @@ git clone https://github.com/Vagnerlg/microservice-java-spring.git
 cd microservice-java-spring
 ```
 
-### 3. Criar a rede Docker compartilhada
-
-```bash
-docker network create platform-net
-```
-
-### 4. Subir a stack completa
+### 3. Subir a stack completa
 
 ```bash
 docker compose up -d
@@ -68,7 +37,7 @@ docker compose up -d
 
 Isso sobe: Traefik, Keycloak, Kafka, Zookeeper, Schema Registry, MongoDB, PostgreSQL, Redis, Elasticsearch e todos os oito microserviços.
 
-### 5. Verificar saúde da stack
+### 4. Verificar saúde da stack
 
 Os serviços levam 60–90 segundos para inicializar. Verifique:
 

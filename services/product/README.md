@@ -10,6 +10,18 @@ Microserviço de catálogo de produtos da plataforma de e-commerce. Responsável
 
 ---
 
+## Índice
+
+- [Stack](#stack)
+- [Arquitetura interna (DDD)](#arquitetura-interna-ddd)
+- [API Reference](#api-reference)
+- [Eventos Kafka](#eventos-kafka)
+- [Como rodar localmente](#como-rodar-localmente)
+- [Testes e qualidade](#testes-e-qualidade)
+- [CI](#ci)
+
+---
+
 ## Stack
 
 | Camada | Tecnologia |
@@ -18,6 +30,7 @@ Microserviço de catálogo de produtos da plataforma de e-commerce. Responsável
 | Framework | Spring Boot 4.0 |
 | Banco de dados | MongoDB |
 | Mensageria | Apache Kafka |
+| Segurança | Spring Security OAuth2 Resource Server (JWT) |
 | Observabilidade | OpenTelemetry + Grafana (Tempo · Loki · Prometheus) |
 | Testes | JUnit 5 + Mockito + Testcontainers |
 | Qualidade | JaCoCo · SpotBugs · PMD |
@@ -25,7 +38,7 @@ Microserviço de catálogo de produtos da plataforma de e-commerce. Responsável
 
 ---
 
-## Arquitetura
+## Arquitetura interna (DDD)
 
 Organizado em **DDD** com separação em três camadas:
 
@@ -36,22 +49,28 @@ com.github.vagnerlg.product/
 └── infrastructure/
     ├── persistence/  # Implementação MongoDB (MongoProductRepository, ProductDocument)
     └── web/          # Controladores REST (ProductController, GlobalExceptionHandler)
+                       # security/SecurityConfiguration — exige ROLE_ADMIN para escrita
 ```
 
 A camada de domínio não conhece Spring nem MongoDB. As dependências apontam sempre das camadas externas para as internas.
 
 ---
 
-## API
+## API Reference
 
 A aplicação sobe na porta `8101`. O Actuator fica na porta `8102`.
 
+### Segurança
+
+Leituras (`GET /products/**`) são públicas. Qualquer outra rota (`POST`, `PUT`, `DELETE`) exige Bearer token JWT (emitido pelo Keycloak) com a role `ADMIN` no claim `realm_access.roles`.
+
 ### POST /products
 
-Cria um novo produto. Retorna `409` se já existir um produto com o mesmo nome.
+Cria um novo produto. Requer JWT com role `ADMIN`. Retorna `409` se já existir um produto com o mesmo nome.
 
 ```bash
 curl -s -X POST http://localhost:8101/products \
+  -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Teclado Mecânico",
@@ -77,7 +96,7 @@ curl -s -X POST http://localhost:8101/products \
 
 ### GET /products/{id}
 
-Busca um produto pelo ID. Retorna `404` se não encontrado.
+Busca um produto pelo ID. Endpoint público — não requer JWT. Retorna `404` se não encontrado.
 
 ```bash
 curl -s http://localhost:8101/products/6650a1f3e4b09c2d3f8a1234 | jq
@@ -101,6 +120,8 @@ curl -s http://localhost:8101/products/6650a1f3e4b09c2d3f8a1234 | jq
 
 | Status | Situação |
 |---|---|
+| `401 Unauthorized` | Token ausente, expirado ou inválido em rota de escrita |
+| `403 Forbidden` | Token válido mas sem a role `ADMIN` |
 | `409 Conflict` | Produto com o mesmo nome já existe |
 | `404 Not Found` | Produto não encontrado |
 | `422 Unprocessable Entity` | Campos inválidos (Bean Validation) |
@@ -119,7 +140,9 @@ Exemplo de resposta de erro de validação:
 
 ---
 
-## Eventos
+## Eventos Kafka
+
+### Produzidos
 
 Ao criar um produto com sucesso, o serviço publica um evento no tópico `product`.
 
@@ -162,7 +185,7 @@ Na raiz do repositório:
 docker compose up -d
 ```
 
-Para o product-service os serviços essenciais são MongoDB (`:27017`) e Kafka (`:9092`).
+Para o product-service os serviços essenciais são MongoDB (`:27017`), Kafka (`:9092`) e Keycloak (`:8084`).
 
 ### 2. Inicie o serviço
 
@@ -170,6 +193,21 @@ Para o product-service os serviços essenciais são MongoDB (`:27017`) e Kafka (
 # A partir de services/product/
 ./mvnw spring-boot:run
 ```
+
+### Variáveis de ambiente (com defaults para dev)
+
+| Variável | Default | Descrição |
+|---|---|---|
+| `SERVER_PORT` | `8101` | Porta da API |
+| `MANAGEMENT_PORT` | `8102` | Porta do Actuator |
+| `MONGO_HOST` | `localhost` | Host do MongoDB |
+| `MONGO_PORT` | `27017` | Porta do MongoDB |
+| `MONGO_USERNAME` | `admin` | Usuário do MongoDB |
+| `MONGO_PASSWORD` | `admin` | Senha do MongoDB |
+| `MONGO_DATABASE` | `product` | Nome do banco |
+| `MONGO_AUTH_DATABASE` | `admin` | Banco de autenticação do MongoDB |
+| `KAFKA_BROKERS` | `localhost:9092` | Bootstrap servers do Kafka |
+| `KEYCLOAK_ISSUER_URI` | `http://localhost:8084/realms/ecommerce` | Issuer URI para validação de JWT |
 
 ### Actuator
 
@@ -185,6 +223,11 @@ curl http://localhost:8102/actuator/health
 
 ## Testes e qualidade
 
+| Sufixo | Executor | Infraestrutura | Descrição |
+|---|---|---|---|
+| `*Test` | Surefire (`./mvnw test`) | Nenhuma | Testes unitários com Mockito |
+| `*IT` | Failsafe (`./mvnw verify`) | Testcontainers | Testes de integração com MongoDB + Kafka reais |
+
 ```bash
 # Testes unitários (sem Docker)
 ./mvnw test
@@ -193,11 +236,15 @@ curl http://localhost:8102/actuator/health
 ./mvnw verify
 ```
 
-| Ferramenta | Threshold |
-|---|---|
-| JaCoCo | ≥ 80% line e branch coverage |
-| SpotBugs | Zero violações |
-| PMD | Zero violações |
+### Quality gates
+
+| Ferramenta | Critério | Build falha se... |
+|---|---|---|
+| **JaCoCo** | Cobertura de linha e branch | LINE ou BRANCH < 80% |
+| **SpotBugs** | Análise de bytecode | Qualquer bug detectado |
+| **PMD** | Qualidade do código-fonte | Qualquer violação |
+
+> Classes excluídas do JaCoCo: `MainApplication`, `*Configuration`, `*Properties`.
 
 Os testes de integração (`*IT`) usam **Testcontainers** — nenhuma infraestrutura local é necessária para rodá-los.
 

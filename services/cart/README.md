@@ -18,7 +18,7 @@ Todas as rotas exigem JWT emitido pelo Keycloak — o `userId` é lido do claim 
 - [Arquitetura interna (DDD)](#arquitetura-interna-ddd)
 - [Autenticação](#autenticação)
 - [API Reference](#api-reference)
-- [Evento Kafka publicado](#evento-kafka-publicado)
+- [Eventos Kafka](#eventos-kafka)
 - [Como rodar localmente](#como-rodar-localmente)
 - [Testes e qualidade](#testes-e-qualidade)
 - [CI](#ci)
@@ -214,7 +214,9 @@ curl -s -X POST http://localhost:8140/carts/checkout \
 
 ---
 
-## Evento Kafka publicado
+## Eventos Kafka
+
+### Produzidos
 
 | Tópico | Evento | Trigger |
 |---|---|---|

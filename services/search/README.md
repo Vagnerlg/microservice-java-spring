@@ -8,51 +8,35 @@
 ![Testcontainers](https://img.shields.io/badge/tests-Testcontainers-blue?logo=docker)
 [![search-service CI](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/search-quality.yml/badge.svg)](https://github.com/Vagnerlg/microservice-java-spring/actions/workflows/search-quality.yml)
 
-Serviço de busca de produtos da plataforma de e-commerce. Implementa o modelo de leitura CQRS: consome eventos do tópico Kafka `product`, mantém o índice Elasticsearch atualizado e expõe uma API de busca full-text paginada.
+Serviço de busca de produtos da plataforma de e-commerce. Implementa o modelo de leitura CQRS: consome eventos do tópico Kafka `product`, mantém o índice Elasticsearch atualizado e expõe uma API de busca full-text paginada. É um consumidor puro — não possui banco de dados transacional próprio nem publica eventos; sua única responsabilidade é manter o índice sincronizado com o catálogo e responder consultas com baixa latência.
 
 ---
 
 ## Índice
 
-- [Visão geral](#visão-geral)
+- [Stack](#stack)
 - [Arquitetura interna (DDD)](#arquitetura-interna-ddd)
-- [Contrato de eventos Kafka](#contrato-de-eventos-kafka)
-- [API Reference](#api-reference)
 - [Índice Elasticsearch](#índice-elasticsearch)
+- [API Reference](#api-reference)
+- [Eventos Kafka](#eventos-kafka)
 - [Como rodar localmente](#como-rodar-localmente)
 - [Testes e qualidade](#testes-e-qualidade)
-- [Observabilidade](#observabilidade)
+- [CI](#ci)
 
 ---
 
-## Visão geral
+## Stack
 
-O `search-service` é um consumidor puro: não possui banco de dados transacional próprio nem publica eventos. Sua única responsabilidade é manter o índice de busca sincronizado com o catálogo de produtos e responder consultas full-text com baixa latência.
-
-```
-┌─────────────────┐   product.CREATED / UPDATED / DELETED   ┌──────────────────┐
-│  product-service │ ──────────────── Kafka ────────────────► │  search-service  │
-└─────────────────┘          (tópico: product)                │                  │
-                                                              │  ┌────────────┐  │
-                                                              │  │    Kafka   │  │
-                                                              │  │  Consumer  │  │
-                                                              │  └─────┬──────┘  │
-                                                              │        │ index / │
-                                                              │        │ delete  │
-                                                              │  ┌─────▼──────┐  │
-                                                              │  │Elasticsearch│  │
-                                                              │  │  products  │  │
-                                                              │  └─────┬──────┘  │
-                                                              │        │ search  │
-                                                              │  ┌─────▼──────┐  │
-                                                              │  │  REST API  │  │
-                                                              │  │GET /search │  │
-                                                              │  └────────────┘  │
-                                                              └──────────────────┘
-                                                                       │
-                                                                       ▼
-                                                               clientes / BFF
-```
+| Camada | Tecnologia |
+|---|---|
+| Linguagem | Java 21 (records) |
+| Framework | Spring Boot 4.0 |
+| Banco de dados | Elasticsearch (read model — sem banco transacional próprio) |
+| Mensageria | Apache Kafka (consumer) |
+| Observabilidade | OpenTelemetry + Grafana (Tempo · Loki · Prometheus) |
+| Testes | JUnit 5 + Mockito + Testcontainers |
+| Qualidade | JaCoCo · SpotBugs · PMD |
+| CI | GitHub Actions |
 
 ---
 
@@ -96,41 +80,30 @@ com.github.vagnerlg.search/
 
 ---
 
-## Contrato de eventos Kafka
+## Índice Elasticsearch
 
-**Tópico:** `product`  
-**Formato:** envelope JSON `{ "event": "<TIPO>", "data": { ...campos... } }`
+**Nome:** `products`
 
-### Tipos de evento
+| Campo | Tipo ES | Comportamento |
+|---|---|---|
+| `id` | `_id` | Identificador do documento |
+| `name` | `text` | Analisado — busca full-text |
+| `description` | `text` | Analisado — busca full-text |
+| `price` | `double` | Numérico — suporta ordenação e range |
+| `category` | `keyword` | Não analisado — filtro exato |
+| `createdAt` | `date` (ISO 8601) | Suporta ordenação temporal |
+| `updatedAt` | `date` (ISO 8601) | Suporta ordenação temporal |
 
-| Evento | Ação no índice |
-|---|---|
-| `CREATED` | Indexa o documento |
-| `UPDATED` | Reindexe o documento (upsert) |
-| `DELETED` | Remove o documento pelo `id` |
+**Estratégia de busca:**
 
-### Payload
-
-```json
-{
-  "event": "CREATED",
-  "data": {
-    "id": "64f1a2b3c4d5e6f7a8b9c0d1",
-    "name": "Tênis Running Pro",
-    "description": "Tênis de corrida com amortecimento avançado",
-    "price": 349.90,
-    "category": "calcados",
-    "createdAt": "2024-01-15T10:30:00Z",
-    "updatedAt": "2024-01-15T10:30:00Z"
-  }
-}
-```
-
-Eventos com tipo desconhecido são ignorados com log `WARN` — o serviço não falha nem comita o offset para garantir reprocessamento.
+- `multi_match` em `name` + `description` para o parâmetro `q`
+- `term` filter em `category` quando informado (executa no contexto `bool.filter`, não afeta relevância)
 
 ---
 
 ## API Reference
+
+A aplicação sobe na porta `8110`. O Actuator fica na porta `8111`. Endpoint público — não requer JWT.
 
 ### `GET /products/search`
 
@@ -178,33 +151,43 @@ curl "http://localhost:8110/products/search?q=tênis&category=calcados&page=0&si
 
 ---
 
-## Índice Elasticsearch
+## Eventos Kafka
 
-**Nome:** `products`
+### Consumidos
 
-| Campo | Tipo ES | Comportamento |
-|---|---|---|
-| `id` | `_id` | Identificador do documento |
-| `name` | `text` | Analisado — busca full-text |
-| `description` | `text` | Analisado — busca full-text |
-| `price` | `double` | Numérico — suporta ordenação e range |
-| `category` | `keyword` | Não analisado — filtro exato |
-| `createdAt` | `date` (ISO 8601) | Suporta ordenação temporal |
-| `updatedAt` | `date` (ISO 8601) | Suporta ordenação temporal |
+**Tópico:** `product`
+**Formato:** envelope JSON `{ "event": "<TIPO>", "data": { ...campos... } }`
 
-**Estratégia de busca:**
+| Evento | Ação no índice |
+|---|---|
+| `CREATED` | Indexa o documento |
+| `UPDATED` | Reindexe o documento (upsert) |
+| `DELETED` | Remove o documento pelo `id` |
 
-- `multi_match` em `name` + `description` para o parâmetro `q`
-- `term` filter em `category` quando informado (executa no contexto `bool.filter`, não afeta relevância)
+**Payload:**
+
+```json
+{
+  "event": "CREATED",
+  "data": {
+    "id": "64f1a2b3c4d5e6f7a8b9c0d1",
+    "name": "Tênis Running Pro",
+    "description": "Tênis de corrida com amortecimento avançado",
+    "price": 349.90,
+    "category": "calcados",
+    "createdAt": "2024-01-15T10:30:00Z",
+    "updatedAt": "2024-01-15T10:30:00Z"
+  }
+}
+```
+
+Eventos com tipo desconhecido são ignorados com log `WARN` — o serviço não falha nem comita o offset para garantir reprocessamento.
 
 ---
 
 ## Como rodar localmente
 
-### Pré-requisitos
-
-- Java 21
-- Docker Desktop
+**Pré-requisitos:** Java 21 e Docker Desktop.
 
 ### 1. Suba a infraestrutura
 
@@ -229,15 +212,15 @@ Com logs em JSON estruturado (ECS):
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=prod
 ```
 
-### Portas
+### Variáveis de ambiente (com defaults para dev)
 
-| Serviço | Porta |
-|---|---|
-| API REST | `8110` |
-| Actuator (health, metrics) | `8111` |
-| Elasticsearch | `9200` |
-| Kafka | `9092` |
-| Grafana | `3000` (admin/admin) |
+| Variável | Default | Descrição |
+|---|---|---|
+| `SERVER_PORT` | `8110` | Porta da API |
+| `MANAGEMENT_PORT` | `8111` | Porta do Actuator |
+| `ELASTICSEARCH_URI` | `http://localhost:9200` | URI do Elasticsearch |
+| `KAFKA_BROKERS` | `localhost:9092` | Bootstrap servers do Kafka |
+| `OTEL_ENDPOINT` | `http://localhost:4318` | Endpoint do OTel Collector |
 
 ### Actuator
 
@@ -253,16 +236,12 @@ curl http://localhost:8111/actuator/health
 
 ## Testes e qualidade
 
-### Estrutura
-
 | Sufixo | Executor | Infraestrutura | Descrição |
 |---|---|---|---|
 | `*Test` | Surefire (`./mvnw test`) | Nenhuma | Testes unitários com Mockito |
 | `*IT` | Failsafe (`./mvnw verify`) | Testcontainers | Testes de integração com ES + Kafka reais |
 
 Os testes de integração sobem containers Docker reais via Testcontainers — sem mocks de infraestrutura.
-
-### Comandos
 
 ```bash
 # Testes unitários (sem Docker)
@@ -276,7 +255,7 @@ Os testes de integração sobem containers Docker reais via Testcontainers — s
 # → target/site/jacoco/index.html
 ```
 
-### Quality gates (executados em `./mvnw verify`)
+### Quality gates
 
 | Ferramenta | Critério | Build falha se... |
 |---|---|---|
@@ -288,21 +267,6 @@ Os testes de integração sobem containers Docker reais via Testcontainers — s
 
 ---
 
-## Observabilidade
+## CI
 
-O serviço exporta os três sinais via **OTLP HTTP** para o OTel Collector:
-
-```
-search-service (:8110)
-  │
-  └─ OTLP HTTP (:4318) ──► OTel Collector
-                                ├─ Traces   ──► Grafana Tempo  (:3200)
-                                ├─ Métricas ──► Prometheus     (:9090)
-                                └─ Logs     ──► Loki           (:3100)
-                                                     │
-                                               Grafana (:3000)
-```
-
-Cada log carrega automaticamente `traceId` e `spanId` — é possível navegar de um trace no Grafana Tempo diretamente para os logs correlacionados no Loki.
-
-Sampling configurado em 100% para desenvolvimento. Reduzir `management.tracing.sampling.probability` em produção.
+O workflow [`search-quality.yml`](../../.github/workflows/search-quality.yml) dispara em todo push e pull request que altere arquivos em `services/search/`. Executa `./mvnw verify` no runner `ubuntu-latest` e publica o relatório JaCoCo como artefato.

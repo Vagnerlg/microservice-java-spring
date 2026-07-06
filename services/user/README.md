@@ -14,8 +14,8 @@ Serviço de perfis de usuário da plataforma de e-commerce. Não gerencia autent
 
 - [Stack](#stack)
 - [Arquitetura interna (DDD com hexagonal)](#arquitetura-interna-ddd-com-hexagonal)
-- [Evento Kafka consumido](#evento-kafka-consumido)
 - [API Reference](#api-reference)
+- [Eventos Kafka](#eventos-kafka)
 - [Como rodar localmente](#como-rodar-localmente)
 - [Testes e qualidade](#testes-e-qualidade)
 - [CI](#ci)
@@ -72,30 +72,6 @@ O consumer é **idempotente**: eventos duplicados com o mesmo `keycloakId` são 
 
 ---
 
-## Evento Kafka consumido
-
-| Tópico | Evento | Producer |
-|---|---|---|
-| `user` | `CREATED` | `auth-service` |
-
-**Formato da mensagem (JSON):**
-
-```json
-{
-  "event": "CREATED",
-  "data": {
-    "keycloakId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-    "username": "joao",
-    "name": "João Silva",
-    "createdAt": "2026-06-11T23:00:00Z"
-  }
-}
-```
-
-O evento é publicado pelo `auth-service` ao concluir o `POST /auth/register` com sucesso.
-
----
-
 ## API Reference
 
 A aplicação sobe na porta `8130`. O Actuator fica na porta `8131`.
@@ -128,6 +104,32 @@ curl -s http://localhost:8130/users/me \
 |---|---|
 | `401 Unauthorized` | Token ausente, expirado ou inválido |
 | `404 Not Found` | Usuário autenticado no Keycloak mas evento `CREATED` ainda não processado |
+
+---
+
+## Eventos Kafka
+
+### Consumidos
+
+| Tópico | Evento | Producer |
+|---|---|---|
+| `user` | `CREATED` | `auth-service` |
+
+**Formato da mensagem (JSON):**
+
+```json
+{
+  "event": "CREATED",
+  "data": {
+    "keycloakId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "username": "joao",
+    "name": "João Silva",
+    "createdAt": "2026-06-11T23:00:00Z"
+  }
+}
+```
+
+O evento é publicado pelo `auth-service` ao concluir o `POST /auth/register` com sucesso.
 
 ---
 

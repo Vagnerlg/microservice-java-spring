@@ -13,7 +13,7 @@ Serviço de notificações da plataforma de e-commerce. **Consumidor Kafka puro*
 
 - [Stack](#stack)
 - [Arquitetura interna (flat)](#arquitetura-interna-flat)
-- [Eventos Kafka consumidos](#eventos-kafka-consumidos)
+- [Eventos Kafka](#eventos-kafka)
 - [Como rodar localmente](#como-rodar-localmente)
 - [Testes e qualidade](#testes-e-qualidade)
 - [CI](#ci)
@@ -58,7 +58,9 @@ Cada consumer deserializa o payload com `ObjectMapper`, faz switch no campo `eve
 
 ---
 
-## Eventos Kafka consumidos
+## Eventos Kafka
+
+### Consumidos
 
 | Tópico | Evento | Log Level | Campos logados |
 |---|---|---|---|

@@ -17,7 +17,7 @@ Serviço de autenticação da plataforma de e-commerce. Delega identidade e toke
 - [Arquitetura interna (DDD)](#arquitetura-interna-ddd)
 - [Integração Keycloak](#integração-keycloak)
 - [API Reference](#api-reference)
-- [Evento Kafka](#evento-kafka)
+- [Eventos Kafka](#eventos-kafka)
 - [Como rodar localmente](#como-rodar-localmente)
 - [Testes e qualidade](#testes-e-qualidade)
 - [Decisão de segurança](#decisão-de-segurança)
@@ -226,7 +226,9 @@ curl -s -X POST http://localhost:8120/auth/logout \
 
 ---
 
-## Evento Kafka
+## Eventos Kafka
+
+### Produzidos
 
 Ao concluir o registro com sucesso, o serviço publica no tópico `user`.
 
